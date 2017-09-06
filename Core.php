@@ -8,7 +8,7 @@
  *
  * New BSD License
  *
- * Copyright © 2007-2015, Hoa community. All rights reserved.
+ * Copyright © 2007-2013, Ivan Enderlin. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -34,7 +34,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace Hoa\Core {
+namespace {
 
 /**
  * Check if Hoa was well-included.
@@ -43,13 +43,13 @@ namespace Hoa\Core {
     !defined('HOA') and define('HOA', true)
 )
 and
-    exit('Hoa main file (Core.php) must be included once.');
+    exit('The Hoa framework main file (Core.php) must be included once.');
 
 (
-    !defined('PHP_VERSION_ID') or PHP_VERSION_ID < 50400
+    !defined('PHP_VERSION_ID') or PHP_VERSION_ID < 50303
 )
 and
-    exit('Hoa needs at least PHP5.4 to work; you have ' . phpversion() . '.');
+    exit('Hoa needs at least PHP5.3.3 to work; you have ' . phpversion() . '.');
 
 /**
  * \Hoa\Core\Consistency
@@ -81,108 +81,115 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'Protocol.php';
  */
 //require_once __DIR__ . DIRECTORY_SEPARATOR . 'Data.php';
 
+}
+
+namespace Hoa\Core {
+
 /**
  * Class \Hoa\Core.
  *
- * \Hoa\Core is the base of all libraries.
+ * \Hoa\Core is the framework package manager.
+ * Each package must include \Hoa\Core, because it is the “taproot” of the
+ * framework.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Core implements Parameter\Parameterizable
-{
+
+class Core implements Parameter\Parameterizable {
+
     /**
      * Stack of all registered shutdown function.
      *
-     * @var array
+     * @var \Hoa\Core array
      */
-    private static $_rsdf     = [];
+    private static $_rsdf     = array();
 
     /**
      * Tree of components, starts by the root.
      *
-     * @var \Hoa\Core\Protocol\Root
+     * @var \Hoa\Core\Protocol\Root object
      */
     private static $_root     = null;
 
     /**
      * Parameters.
      *
-     * @var \Hoa\Core\Parameter
+     * @var \Hoa\Core\Parameter object
      */
     protected $_parameters    = null;
 
     /**
      * Singleton.
      *
-     * @var \Hoa\Core
+     * @var \Hoa\Core object
      */
     private static $_instance = null;
+
+    /**
+     * Whether the debugger is started or not.
+     *
+     * @var \Hoa\Core bool
+     */
+    private static $_debugger = false;
 
 
 
     /**
      * Singleton.
      *
+     * @access  private
      * @return  void
      */
-    private function __construct()
-    {
-        static::_define('SUCCEED',        true);
-        static::_define('FAILED',         false);
-        static::_define('…',              '__hoa_core_fill');
-        static::_define('DS',             DIRECTORY_SEPARATOR);
-        static::_define('PS',             PATH_SEPARATOR);
-        static::_define('ROOT_SEPARATOR', ';');
-        static::_define('RS',             ROOT_SEPARATOR);
-        static::_define('CRLF',           "\r\n");
-        static::_define('OS_WIN',         defined('PHP_WINDOWS_VERSION_PLATFORM'));
-        static::_define('S_64_BITS',      PHP_INT_SIZE == 8);
-        static::_define('S_32_BITS',      !S_64_BITS);
-        static::_define('PHP_INT_MIN',    ~PHP_INT_MAX);
-        static::_define('PHP_FLOAT_MIN',  (float) PHP_INT_MIN);
-        static::_define('PHP_FLOAT_MAX',  (float) PHP_INT_MAX);
-        static::_define('π',              M_PI);
-        static::_define('void',           (unset) null);
-        static::_define('_public',        1);
-        static::_define('_protected',     2);
-        static::_define('_private',       4);
-        static::_define('_static',        8);
-        static::_define('_abstract',      16);
-        static::_define('_pure',          32);
-        static::_define('_final',         64);
-        static::_define('_dynamic',       ~_static);
-        static::_define('_concrete',      ~_abstract);
-        static::_define('_overridable',   ~_final);
-        static::_define('WITH_COMPOSER',  class_exists('Composer\Autoload\ClassLoader', false) ||
-                                          ('cli' === PHP_SAPI &&
-                                          file_exists(__DIR__ . DS . '..' . DS . '..' . DS . 'autoload.php')));
+    private function __construct ( ) {
 
-        if (false !== $wl = ini_get('suhosin.executor.include.whitelist')) {
-            if (false === in_array('hoa', explode(',', $wl))) {
+        static::_define('SUCCEED',             true);
+        static::_define('FAILED',              false);
+        static::_define('…',                   '__hoa_core_fill');
+        static::_define('DS',                  DIRECTORY_SEPARATOR);
+        static::_define('PS',                  PATH_SEPARATOR);
+        static::_define('CRLF',                "\r\n");
+        static::_define('OS_WIN',              defined('PHP_WINDOWS_VERSION_PLATFORM'));
+        static::_define('S_64_BITS',           PHP_INT_SIZE == 8);
+        static::_define('S_32_BITS',           !S_64_BITS);
+        static::_define('PHP_INT_MIN',         ~PHP_INT_MAX);
+        static::_define('PHP_FLOAT_MIN',       (float) PHP_INT_MIN);
+        static::_define('PHP_FLOAT_MAX',       (float) PHP_INT_MAX);
+        static::_define('π',                   M_PI);
+        static::_define('void',                (unset) null);
+        static::_define('_public',             1);
+        static::_define('_protected',          2);
+        static::_define('_private',            4);
+        static::_define('_static',             8);
+        static::_define('_abstract',           16);
+        static::_define('_pure',               32);
+        static::_define('_final',              64);
+        static::_define('_dynamic',            ~_static);
+        static::_define('_concrete',           ~_abstract);
+        static::_define('_overridable',        ~_final);
+        static::_define('HOA_VERSION_MAJOR',   1);
+        static::_define('HOA_VERSION_MINOR',   0);
+        static::_define('HOA_VERSION_RELEASE', 0);
+        static::_define('HOA_VERSION_STATUS',  'b8');
+        static::_define('HOA_VERSION_EXTRA',   'dev');
+        static::_define('WITH_COMPOSER',       class_exists('Composer\Autoload\ClassLoader', false));
+
+        if(false !== $wl = ini_get('suhosin.executor.include.whitelist'))
+            if(false === in_array('hoa', explode(',', $wl)))
                 throw new Exception(
                     'The URL scheme hoa:// is not authorized by Suhosin. ' .
                     'You must add this to your php.ini or suhosin.ini: ' .
                     'suhosin.executor.include.whitelist="%s", thanks :-).',
-                    0,
-                    implode(
-                        ',',
-                        array_merge(
-                            preg_split('#,#', $wl, -1, PREG_SPLIT_NO_EMPTY),
-                            ['hoa']
-                        )
-                    )
-                );
-            }
-        }
+                    0, implode(',', array_merge(
+                        preg_split('#,#', $wl, -1, PREG_SPLIT_NO_EMPTY),
+                        array('hoa')
+                    )));
 
-        if (true === function_exists('mb_internal_encoding')) {
-            mb_internal_encoding('UTF-8');
-        }
+        $date = ini_get('date.timezone');
 
-        if (true === function_exists('mb_regex_encoding')) {
-            mb_regex_encoding('UTF-8');
-        }
+        if(empty($date))
+            ini_set('date.timezone', 'Europe/Paris');
 
         return;
     }
@@ -190,66 +197,66 @@ class Core implements Parameter\Parameterizable
     /**
      * Singleton.
      *
+     * @access  public
      * @return  \Hoa\Core
      */
-    public static function getInstance()
-    {
-        if (null === static::$_instance) {
+    public static function getInstance ( ) {
+
+        if(null === static::$_instance)
             static::$_instance = new static();
-        }
 
         return static::$_instance;
     }
 
     /**
-     * Initialize the core.
+     * Initialize the framework.
      *
+     * @access  public
      * @param   array   $parameters    Parameters of \Hoa\Core.
      * @return  \Hoa\Core
      */
-    public function initialize(Array $parameters = [])
-    {
+    public function initialize ( Array $parameters = array() ) {
+
         $root = dirname(dirname(__DIR__));
-        $cwd  =
-            'cli' === PHP_SAPI
-                ? dirname(realpath($_SERVER['argv'][0]))
-                : getcwd();
-        $this->_parameters = new Parameter\Parameter(
+        $cwd  = 'cli' === PHP_SAPI
+                    ? dirname(realpath($_SERVER['argv'][0]))
+                    : getcwd();
+        $this->_parameters = new Parameter(
             $this,
-            [
+            array(
                 'root' => $root,
                 'cwd'  => $cwd
-            ],
-            [
+            ),
+            array(
                 'root.hoa'         => '(:root:)',
                 'root.application' => '(:cwd:h:)',
-                'root.data'        => '(:%root.application:h:)' . DS . 'Data' . DS,
+                'root.data'        => '(:%root.application:h:)/Data',
 
-                'protocol.Application'            => '(:%root.application:)' . DS,
-                'protocol.Application/Public'     => 'Public' . DS,
-                'protocol.Data'                   => '(:%root.data:)',
-                'protocol.Data/Etc'               => 'Etc' . DS,
-                'protocol.Data/Etc/Configuration' => 'Configuration' . DS,
-                'protocol.Data/Etc/Locale'        => 'Locale' . DS,
-                'protocol.Data/Library'           => 'Library' . DS . 'Hoathis' . DS . RS .
-                                                     'Library' . DS . 'Hoa' . DS,
-                'protocol.Data/Lost+found'        => 'Lost+found' . DS,
-                'protocol.Data/Temporary'         => 'Temporary' . DS,
-                'protocol.Data/Variable'          => 'Variable' . DS,
-                'protocol.Data/Variable/Cache'    => 'Cache' . DS,
-                'protocol.Data/Variable/Database' => 'Database' . DS,
-                'protocol.Data/Variable/Log'      => 'Log' . DS,
-                'protocol.Data/Variable/Private'  => 'Private' . DS,
-                'protocol.Data/Variable/Run'      => 'Run' . DS,
-                'protocol.Data/Variable/Test'     => 'Test' . DS,
-                'protocol.Library'                => '(:%protocol.Data:)Library' . DS . 'Hoathis' . DS . RS .
-                                                     '(:%protocol.Data:)Library' . DS . 'Hoa' . DS . RS .
-                                                     '(:%root.hoa:)' . DS . 'Hoathis' . DS . RS .
-                                                     '(:%root.hoa:)' . DS . 'Hoa' . DS,
+                'protocol.Application'            => '(:%root.application:)/',
+                'protocol.Application/Public'     => 'Public/',
+                'protocol.Data'                   => '(:%root.data:)/',
+                'protocol.Data/Etc'               => 'Etc/',
+                'protocol.Data/Etc/Configuration' => 'Configuration/',
+                'protocol.Data/Etc/Locale'        => 'Locale/',
+                'protocol.Data/Library'           => 'Library/Hoathis/;' .
+                                                     'Library/Hoa/',
+                'protocol.Data/Lost+found'        => 'Lost+found/',
+                'protocol.Data/Temporary'         => 'Temporary/',
+                'protocol.Data/Variable'          => 'Variable/',
+                'protocol.Data/Variable/Cache'    => 'Cache/',
+                'protocol.Data/Variable/Database' => 'Database/',
+                'protocol.Data/Variable/Log'      => 'Log/',
+                'protocol.Data/Variable/Private'  => 'Private/',
+                'protocol.Data/Variable/Run'      => 'Run/',
+                'protocol.Data/Variable/Test'     => 'Test/',
+                'protocol.Library'                => '(:%protocol.Data:)Library/Hoathis/;' .
+                                                     '(:%protocol.Data:)Library/Hoa/;' .
+                                                     '(:%root.hoa:)/Hoathis/;' .
+                                                     '(:%root.hoa:)/Hoa/',
 
-                'namespace.prefix.*'           => '(:%protocol.Data:)Library' . DS . RS . '(:%root.hoa:)' . DS,
-                'namespace.prefix.Application' => '(:%root.application:h:)' . DS,
-            ]
+                'namespace.prefix.*'           => '(:%protocol.Data:)Library/;(:%root.hoa:)/',
+                'namespace.prefix.Application' => '(:%root.application:h:)/',
+            )
         );
 
         $this->_parameters->setKeyword('root', $root);
@@ -263,62 +270,63 @@ class Core implements Parameter\Parameterizable
     /**
      * Get parameters.
      *
+     * @access  public
      * @return  \Hoa\Core\Parameter
      */
-    public function getParameters()
-    {
+    public function getParameters ( ) {
+
         return $this->_parameters;
     }
 
     /**
      * Set protocol according to the current parameter.
      *
+     * @access  public
      * @param   string  $path     Path (e.g. hoa://Data/Temporary).
      * @param   string  $reach    Reach value.
      * @return  void
      */
-    public function setProtocol($path = null, $reach = null)
-    {
+    public function setProtocol ( $path = null, $reach = null ) {
+
         $root = static::getProtocol();
 
-        if (null === $path && null === $reach) {
-            if (!isset($root['Library'])) {
+        if(null === $path && null === $reach) {
+
+            if(!isset($root['Library'])) {
+
                 static::$_root = null;
                 $root          = static::getProtocol();
             }
 
             $protocol = $this->getParameters()->unlinearizeBranche('protocol');
 
-            foreach ($protocol as $components => $reach) {
+            foreach($protocol as $components => $reach) {
+
                 $parts  = explode('/', trim($components, '/'));
                 $last   = array_pop($parts);
                 $handle = $root;
 
-                foreach ($parts as $part) {
+                foreach($parts as $part)
                     $handle = $handle[$part];
-                }
 
-                if ('Library' === $last) {
+                if('Library' === $last)
                     $handle[] = new Protocol\Library($last, $reach);
-                } else {
+                else
                     $handle[] = new Protocol\Generic($last, $reach);
-                }
             }
 
             return;
         }
 
-        if ('hoa://' === substr($path, 0, 6)) {
+        if('hoa://' === substr($path, 0, 6))
             $path = substr($path, 6);
-        }
 
         $path   = trim($path, '/');
         $parts  = explode('/', $path);
         $handle = $root;
 
-        foreach ($parts as $part) {
+        foreach($parts as $part)
             $handle = $handle[$part];
-        }
 
         $handle->setReach($reach);
         $root->clearCache();
@@ -332,16 +340,16 @@ class Core implements Parameter\Parameterizable
      * If the constant is defined, this method returns false.
      * Else this method declares the constant.
      *
+     * @access  public
      * @param   string  $name     The name of the constant.
      * @param   string  $value    The value of the constant.
      * @param   bool    $case     True set the case-insensitive.
      * @return  bool
      */
-    public static function _define($name, $value, $case = false)
-    {
-        if (!defined($name)) {
+    public static function _define ( $name, $value, $case = false) {
+
+        if(!defined($name))
             return define($name, $value, $case);
-        }
 
         return false;
     }
@@ -349,49 +357,15 @@ class Core implements Parameter\Parameterizable
     /**
      * Get protocol's root.
      *
+     * @access  public
      * @return  \Hoa\Core\Protocol\Root
      */
-    public static function getProtocol()
-    {
-        if (null === static::$_root) {
+    public static function getProtocol ( ) {
+
+        if(null === static::$_root)
             static::$_root = new Protocol\Root();
-        }
 
         return static::$_root;
-    }
-
-    /**
-     * Enable exception handler: catch uncaught exception.
-     *
-     * @param   bool  $enable    Enable.
-     * @return  mixed
-     */
-    public static function enableExceptionHandler($enable = true)
-    {
-        if (false === $enable) {
-            return restore_exception_handler();
-        }
-
-        return set_exception_handler(function ($exception) {
-            return Exception\Idle::uncaught($exception);
-        });
-    }
-
-    /**
-     * Enable error handler: transform PHP error into \Hoa\Core\Exception\Error.
-     *
-     * @param   bool  $enable    Enable.
-     * @return  mixed
-     */
-    public static function enableErrorHandler($enable = true)
-    {
-        if (false === $enable) {
-            return restore_error_handler();
-        }
-
-        return set_error_handler(function ($no, $str, $file = null, $line = null, $ctx = null) {
-            return Exception\Idle::error($no, $str, $file, $line, $ctx);
-        });
     }
 
     /**
@@ -399,75 +373,109 @@ class Core implements Parameter\Parameterizable
      * It may be analogous to a static __destruct, but it allows us to make more
      * that a __destruct method.
      *
+     * @access  public
      * @param   string  $class     Class.
      * @param   string  $method    Method.
      * @return  bool
      */
-    public static function registerShutdownFunction($class = '', $method = '')
-    {
-        if (!isset(static::$_rsdf[$class][$method])) {
-            static::$_rsdf[$class][$method] = true;
+    public static function registerShutdownFunction ( $class = '', $method = '' ) {
 
-            return register_shutdown_function([$class, $method]);
+        if(!isset(static::$_rsdf[$class][$method])) {
+
+            static::$_rsdf[$class][$method] = true;
+            return register_shutdown_function(array($class, $method));
         }
 
         return false;
     }
 
     /**
-     * Get PHP executable.
+     * Start the debugger.
      *
-     * @return  string
+     * @access  public
+     * @param   string  $socket    Socket URI.
+     * @return  void
      */
-    public static function getPHPBinary()
-    {
-        if (defined('PHP_BINARY')) {
-            return PHP_BINARY;
+    public static function startDebugger ( $socket = null ) {
+
+        from('Hoa')
+        -> import('Socket.Client');
+
+        if(null === $socket)
+            $socket = 'tcp://localhost:57005';
+
+        try {
+
+            $client = new \Hoa\Socket\Client($socket);
+            $client->connect();
+            static::$_debugger = true;
+        }
+        catch ( Exception $e ) {
+
+            throw new Exception(
+                'Cannot start the debugger because the server is not ' .
+                'listening.', 0);
         }
 
-        if (isset($_SERVER['_'])) {
-            return $_SERVER['_'];
-        }
+        $client->writeLine('open');
 
-        foreach (['', '.exe'] as $extension) {
-            if (file_exists($_ = PHP_BINDIR . DS . 'php' . $extension)) {
-                return realpath($_);
-            }
-        }
+        event('hoa://Event/Exception')
+            ->attach(function ( Event\Bucket $event) use ( $client ) {
 
-        return null;
+                $exception = $event->getData();
+
+                try {
+
+                    $client->writeLine(serialize($exception));
+                }
+                catch ( \Exception $e ) {
+
+                    $client->writeLine('error serialize');
+                }
+            });
+
+        return;
     }
 
     /**
-     * Generate an Universal Unique Identifier (UUID).
+     * Dump a data to the debugger.
      *
-     * @return  string
+     * @access  public
+     * @param   mixed   $data    Data.
+     * @return  void
      */
-    public static function uuid()
-    {
-        return sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff)
-        );
+    public static function dump ( $data ) {
+
+        if(false === static::$_debugger)
+            static::startDebugger();
+
+        try {
+
+            $trace = debug_backtrace();
+
+            ob_start();
+            debug_zval_dump($data);
+            $data = trim(ob_get_contents());
+            ob_end_clean();
+
+            throw new Exception\Error(
+                $data, 0, $trace[0]['file'], $trace[0]['line'], $trace);
+        }
+        catch ( Exception $e ) { }
+
+        return;
     }
 
     /**
      * Return the copyright and license of Hoa.
      *
+     * @access  public
      * @return  string
      */
-    public static function ©()
-    {
-        return
-            'Copyright © 2007-2015 Ivan Enderlin. All rights reserved.' . "\n" .
-            'New BSD License.';
+    public static function © ( ) {
+
+        return 'Copyright © 2007-2013 Ivan Enderlin. All rights reserved.' . "\n" .
+               'New BSD License.';
     }
 }
 
@@ -481,36 +489,77 @@ namespace {
 class_alias('Hoa\Core\Core', 'Hoa\Core');
 
 /**
+ * Alias of function_exists().
+ *
+ * @access  public
+ * @param   string  $name    Name.
+ * @return  bool
+ */
+function ƒ ( $name ) {
+
+    return function_exists($name);
+}
+
+/**
  * Alias of \Hoa\Core::_define().
  *
+ * @access  public
  * @param   string  $name     The name of the constant.
  * @param   string  $value    The value of the constant.
  * @param   bool    $case     True set the case-insentisitve.
  * @return  bool
  */
-if (!function_exists('_define')) {
-    function _define($name, $value, $case = false)
-    {
-        return Hoa\Core::_define($name, $value, $case);
-    }
-}
+if(!ƒ('_define')) {
+function _define ( $name, $value, $case = false ) {
+
+    return \Hoa\Core::_define($name, $value, $case);
+}}
+
+/**
+ * Alias of \Hoa\Core::dump().
+ *
+ * @access  public
+ * @param   mixed   $data    Data.
+ * @return  void
+ */
+if(!ƒ('dump')) {
+function dump ( $message ) {
+
+    return \Hoa\Core::dump($message);
+}}
 
 /**
  * Alias of the \Hoa\Core\Event::getEvent() method.
  *
+ * @access  public
  * @param   string  $eventId    Event ID.
  * @return  \Hoa\Core\Event
  */
-if (!function_exists('event')) {
-    function event($eventId)
-    {
-        return Hoa\Core\Event\Event::getEvent($eventId);
-    }
-}
+if(!ƒ('event')) {
+function event ( $eventId ) {
+
+    return \Hoa\Core\Event\Event::getEvent($eventId);
+}}
+
+/**
+ * Catch uncaught exception.
+ */
+set_exception_handler(function ( $exception ) {
+
+    return Hoa\Core\Exception\Idle::uncaught($exception);
+});
+
+/**
+ * Transform PHP error into \Hoa\Core\Exception\Error.
+ */
+set_error_handler(function ( $no, $str, $file = null, $line = null, $ctx = null ) {
+
+    return Hoa\Core\Exception\Idle::error($no, $str, $file, $line, $ctx);
+});
 
 /**
  * Then, initialize Hoa.
  */
-Hoa\Core::getInstance()->initialize();
+\Hoa\Core::getInstance()->initialize();
 
 }

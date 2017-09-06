@@ -34,28 +34,42 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+namespace {
+
+from('Hoa')
+
+/**
+ * \Hoa\Console
+ */
+-> import('Console.~');
+
+}
+
 namespace Hoa\Core\Bin {
 
 /**
- * Class \Hoa\Core\Bin\Uuid.
+ * Class \Hoa\Core\Bin\Version.
  *
- * This command generates an UUID.
+ * Get informations about versions.
  *
  * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
  * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
 
-class Uuid extends \Hoa\Console\Dispatcher\Kit {
+class Version extends \Hoa\Console\Dispatcher\Kit {
 
     /**
      * Options description.
      *
-     * @var \Hoa\Core\Bin\Uuid array
+     * @var \Hoa\Core\Bin\Version array
      */
     protected $options = array(
-        array('help', \Hoa\Console\GetOption::NO_ARGUMENT, 'h'),
-        array('help', \Hoa\Console\GetOption::NO_ARGUMENT, '?')
+        array('version',    \Hoa\Console\GetOption::NO_ARGUMENT, 'v'),
+        array('signature',  \Hoa\Console\GetOption::NO_ARGUMENT, 's'),
+        array('no-verbose', \Hoa\Console\GetOption::NO_ARGUMENT, 'V'),
+        array('help',       \Hoa\Console\GetOption::NO_ARGUMENT, 'h'),
+        array('help',       \Hoa\Console\GetOption::NO_ARGUMENT, '?')
     );
 
 
@@ -68,7 +82,26 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
      */
     public function main ( ) {
 
+        $version  = HOA_VERSION_MAJOR . '.' . HOA_VERSION_MINOR . '.' .
+                    HOA_VERSION_RELEASE . HOA_VERSION_STATUS .
+                    (null !== HOA_VERSION_EXTRA
+                        ? '-' . HOA_VERSION_EXTRA
+                        : '');
+        $verbose  = \Hoa\Console::isDirect(STDOUT);
+        $message  = null;
+        $info     = null;
+
         while(false !== $c = $this->getOption($v)) switch($c) {
+
+            case 'v':
+                $info    = $version;
+                $message = 'Hoa version: ' .
+                           $this->stylize($info, 'info') . '.';
+              break;
+
+            case 'V':
+                $verbose = false;
+              break;
 
             case 'h':
             case '?':
@@ -78,19 +111,22 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
             case '__ambiguous':
                 $this->resolveOptionAmbiguity($v);
               break;
+
+            case 's':
+            default:
+                $info = $message = 'Hoa ' . $version . '.' . "\n" .
+                                   \Hoa\Core::©();
+              break;
         }
 
-        echo sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff)
-        ), "\n";
+        if(null === $message && null === $info)
+            $info = $message  = 'Hoa ' . $version . '.' . "\n" .
+                                \Hoa\Core::©();
+
+        if(true === $verbose)
+            echo $message, "\n";
+        else
+            echo $info, "\n";
 
         return;
     }
@@ -103,10 +139,14 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
      */
     public function usage ( ) {
 
-        echo 'Usage   : core:uuid <options>', "\n",
+        echo 'Usage   : core:version <options>', "\n",
              'Options :', "\n",
              $this->makeUsageOptionsList(array(
-                  'help' => 'This help.'
+                 'v'    => 'Get the version.',
+                 's'    => 'Get the complete signature.',
+                 'V'    => 'No-verbose, i.e. be as quiet as possible, just print ' .
+                           'essential informations.',
+                 'help' => 'This help.'
              )), "\n";
 
         return;
@@ -116,4 +156,4 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
 }
 
 __halt_compiler();
-Generate an Universal Unique Identifier (UUID).
+Informations about versions.

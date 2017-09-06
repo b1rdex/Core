@@ -34,86 +34,56 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace Hoa\Core\Bin {
+namespace {
 
 /**
- * Class \Hoa\Core\Bin\Uuid.
- *
- * This command generates an UUID.
- *
  * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
  * @copyright  Copyright © 2007-2013 Ivan Enderlin.
- * @license    New BSD License
  */
 
-class Uuid extends \Hoa\Console\Dispatcher\Kit {
+if(!defined('HOA'))
+    require dirname(__DIR__) . DIRECTORY_SEPARATOR . 'Core.php';
 
-    /**
-     * Options description.
-     *
-     * @var \Hoa\Core\Bin\Uuid array
-     */
-    protected $options = array(
-        array('help', \Hoa\Console\GetOption::NO_ARGUMENT, 'h'),
-        array('help', \Hoa\Console\GetOption::NO_ARGUMENT, '?')
+from('Hoa')
+-> import('Router.Cli')
+-> import('Dispatcher.Basic')
+-> import('Console.Dispatcher.Kit');
+
+require __DIR__ . DS . 'Style' . DS . 'Basic.php';
+$style = new \Hoa\Core\Bin\Style\Basic();
+$style->import();
+
+/**
+ * Here we go…
+ */
+try {
+
+    $router = new \Hoa\Router\Cli();
+    $router->get(
+        'g',
+        '(?:(?<vendor>\w+)\s+)?(?<library>\w+)?(?::(?<command>\w+))?(?<_tail>.*?)',
+        'main',
+        'main',
+        array(
+            'vendor'  => 'hoa',
+            'library' => 'core',
+            'command' => 'welcome'
+        )
     );
 
+    $dispatcher = new \Hoa\Dispatcher\Basic(array(
+        'synchronous.controller'
+            => '(:%variables.vendor:lU:)\(:%variables.library:lU:)\Bin\(:%variables.command:lU:)',
+        'synchronous.action'
+            => 'main'
+    ));
+    $dispatcher->setKitName('Hoa\Console\Dispatcher\Kit');
+    exit($dispatcher->dispatch($router));
+}
+catch ( \Exception $e ) {
 
-
-    /**
-     * The entry method.
-     *
-     * @access  public
-     * @return  int
-     */
-    public function main ( ) {
-
-        while(false !== $c = $this->getOption($v)) switch($c) {
-
-            case 'h':
-            case '?':
-                return $this->usage();
-              break;
-
-            case '__ambiguous':
-                $this->resolveOptionAmbiguity($v);
-              break;
-        }
-
-        echo sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff)
-        ), "\n";
-
-        return;
-    }
-
-    /**
-     * The command usage.
-     *
-     * @access  public
-     * @return  int
-     */
-    public function usage ( ) {
-
-        echo 'Usage   : core:uuid <options>', "\n",
-             'Options :', "\n",
-             $this->makeUsageOptionsList(array(
-                  'help' => 'This help.'
-             )), "\n";
-
-        return;
-    }
+    echo $e->raise(true);
+    exit($e->getCode() + 1);
 }
 
 }
-
-__halt_compiler();
-Generate an Universal Unique Identifier (UUID).

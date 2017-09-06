@@ -34,86 +34,85 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace Hoa\Core\Bin {
+namespace {
+
+from('Hoa')
 
 /**
- * Class \Hoa\Core\Bin\Uuid.
+ * \Hoa\Console\Chrome\Style
+ */
+-> import('Console.Chrome.Style');
+
+}
+
+namespace Hoa\Core\Bin\Style {
+
+/**
+ * Class \Hoa\Core\Bin\Style\Basic.
  *
- * This command generates an UUID.
+ * This sheet declares the main style.
  *
  * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
  * @copyright  Copyright © 2007-2013 Ivan Enderlin.
- * @license    New BSD License
  */
 
-class Uuid extends \Hoa\Console\Dispatcher\Kit {
+class Basic extends \Hoa\Console\Chrome\Style {
 
     /**
-     * Options description.
-     *
-     * @var \Hoa\Core\Bin\Uuid array
-     */
-    protected $options = array(
-        array('help', \Hoa\Console\GetOption::NO_ARGUMENT, 'h'),
-        array('help', \Hoa\Console\GetOption::NO_ARGUMENT, '?')
-    );
-
-
-
-    /**
-     * The entry method.
+     * Import the style.
      *
      * @access  public
-     * @return  int
+     * @return  void
      */
-    public function main ( ) {
+    public function import ( ) {
 
-        while(false !== $c = $this->getOption($v)) switch($c) {
+        parent::addStyles(array(
 
-            case 'h':
-            case '?':
-                return $this->usage();
-              break;
+            '_exception' => array(
+                parent::COLOR_FOREGROUND_WHITE,
+                parent::COLOR_BACKGROUND_RED
+            ),
 
-            case '__ambiguous':
-                $this->resolveOptionAmbiguity($v);
-              break;
-        }
+            'h1' => array(
+                parent::COLOR_FOREGROUND_YELLOW,
+                parent::TEXT_UNDERLINE
+            ),
 
-        echo sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff)
-        ), "\n";
+            'h2' => array(
+                parent::COLOR_FOREGROUND_GREEN
+            ),
 
-        return;
-    }
+            'info' => array(
+                parent::COLOR_FOREGROUND_YELLOW
+            ),
 
-    /**
-     * The command usage.
-     *
-     * @access  public
-     * @return  int
-     */
-    public function usage ( ) {
+            'error' => array(
+                parent::COLOR_FOREGROUND_WHITE,
+                parent::COLOR_BACKGROUND_RED,
+                parent::TEXT_BOLD
+            ),
 
-        echo 'Usage   : core:uuid <options>', "\n",
-             'Options :', "\n",
-             $this->makeUsageOptionsList(array(
-                  'help' => 'This help.'
-             )), "\n";
+            'success' => array(
+                parent::COLOR_FOREGROUND_GREEN
+            ),
+
+            'nosuccess' => array(
+                parent::COLOR_FOREGROUND_RED
+            ),
+
+            'command' => array(
+                parent::COLOR_FOREGROUND_BLUE
+            ),
+
+            'attention' => array(
+                parent::COLOR_FOREGROUND_WHITE,
+                parent::COLOR_BACKGROUND_RED,
+                parent::TEXT_BOLD
+            ),
+        ));
 
         return;
     }
 }
 
 }
-
-__halt_compiler();
-Generate an Universal Unique Identifier (UUID).

@@ -8,7 +8,7 @@
  *
  * New BSD License
  *
- * Copyright © 2007-2015, Hoa community. All rights reserved.
+ * Copyright © 2007-2013, Ivan Enderlin. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -34,103 +34,108 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace Hoa\Core\Bin;
+namespace {
 
-use Hoa\Console;
-use Hoa\Core;
+from('Hoa')
+
+/**
+ * \Hoa\Console
+ */
+-> import('Console.~');
+
+}
+
+namespace Hoa\Core\Bin {
 
 /**
  * Class \Hoa\Core\Bin\Resolve.
  *
  * This command resolves some hoa:// paths.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Resolve extends Console\Dispatcher\Kit
-{
+
+class Resolve extends \Hoa\Console\Dispatcher\Kit {
+
     /**
      * Options description.
      *
-     * @var array
+     * @var \Hoa\Core\Bin\Resolve array
      */
-    protected $options = [
-        ['exists',     Console\GetOption::NO_ARGUMENT, 'E'],
-        ['unfold',     Console\GetOption::NO_ARGUMENT, 'u'],
-        ['tree',       Console\GetOption::NO_ARGUMENT, 't'],
-        ['no-verbose', Console\GetOption::NO_ARGUMENT, 'V'],
-        ['help',       Console\GetOption::NO_ARGUMENT, 'h'],
-        ['help',       Console\GetOption::NO_ARGUMENT, '?']
-    ];
+    protected $options = array(
+        array('exists',     \Hoa\Console\GetOption::NO_ARGUMENT, 'E'),
+        array('unfold',     \Hoa\Console\GetOption::NO_ARGUMENT, 'u'),
+        array('tree',       \Hoa\Console\GetOption::NO_ARGUMENT, 't'),
+        array('no-verbose', \Hoa\Console\GetOption::NO_ARGUMENT, 'V'),
+        array('help',       \Hoa\Console\GetOption::NO_ARGUMENT, 'h'),
+        array('help',       \Hoa\Console\GetOption::NO_ARGUMENT, '?')
+    );
 
 
 
     /**
      * The entry method.
      *
+     * @access  public
      * @return  int
      */
-    public function main()
-    {
+    public function main ( ) {
+
         $exists  = true;
         $unfold  = false;
         $tree    = false;
-        $verbose = Console::isDirect(STDOUT);
+        $verbose = \Hoa\Console::isDirect(STDOUT);
 
-        while (false !== $c = $this->getOption($v)) {
-            switch ($c) {
-                case 'E':
-                    $exists = false;
+        while(false !== $c = $this->getOption($v)) switch($c) {
 
-                    break;
+            case 'E':
+                $exists = false;
+              break;
 
-                case 'u':
-                    $unfold = true;
+            case 'u':
+                $unfold = true;
+              break;
 
-                    break;
+            case 't':
+                $tree = true;
+              break;
 
-                case 't':
-                    $tree = true;
+            case 'V':
+                $verbose = false;
+              break;
 
-                    break;
+            case 'h':
+            case '?':
+                return $this->usage();
+              break;
 
-                case 'V':
-                    $verbose = false;
-
-                    break;
-
-                case 'h':
-                case '?':
-                    return $this->usage();
-
-                case '__ambiguous':
-                    $this->resolveOptionAmbiguity($v);
-
-                    break;
-            }
+            case '__ambiguous':
+                $this->resolveOptionAmbiguity($v);
+              break;
         }
 
         $this->parser->listInputs($path);
 
-        if (null === $path) {
+        if(null === $path)
             return $this->usage();
-        }
 
-        if (true === $tree) {
-            $protocol = Core::getProtocol();
+        if(true === $tree) {
+
+            $protocol = \Hoa\Core::getProtocol();
             $foo      = substr($path, 0, 6);
 
-            if ('hoa://' !== $foo) {
+            if('hoa://' !== $foo)
                 return;
-            }
 
             $path    = substr($path, 6);
             $current = $protocol;
 
-            foreach (explode('/', $path) as $component) {
-                if (!isset($current[$component])) {
+            foreach(explode('/', $path) as $component) {
+
+                if(!isset($current[$component]))
                     break;
-                }
 
                 $current = $current[$component];
             }
@@ -140,17 +145,13 @@ class Resolve extends Console\Dispatcher\Kit
             return;
         }
 
-        if (true === $verbose) {
-            echo
-                Console\Chrome\Text::colorize($path, 'foreground(yellow)'),
-                ' is equivalent to:', "\n";
-        }
+        if(true === $verbose)
+            echo $this->stylize($path, 'info'), ' is equivalent to: ', "\n";
 
         $resolved = resolve($path, $exists, $unfold);
 
-        foreach ((array) $resolved as $r) {
+        foreach((array) $resolved as $r)
             echo $r, "\n";
-        }
 
         return;
     }
@@ -158,24 +159,26 @@ class Resolve extends Console\Dispatcher\Kit
     /**
      * The command usage.
      *
+     * @access  public
      * @return  int
      */
-    public function usage()
-    {
-        echo
-            'Usage   : core:resolve <options> path', "\n",
-            'Options :', "\n",
-            $this->makeUsageOptionsList([
-                'E'    => 'Do not check if the resolution result exists.',
-                'u'    => 'Unfold all possible results.',
-                't'    => 'Print the tree from the path.',
-                'V'    => 'No-verbose, i.e. be as quiet as possible, just print ' .
-                          'essential informations.',
-                'help' => 'This help.'
-            ]), "\n";
+    public function usage ( ) {
+
+        echo 'Usage   : core:resolve <options> path', "\n",
+             'Options :', "\n",
+             $this->makeUsageOptionsList(array(
+                 'E'    => 'Do not check if the resolution result exists.',
+                 'u'    => 'Unfold all possible results.',
+                 't'    => 'Print the tree from the path.',
+                 'V'    => 'No-verbose, i.e. be as quiet as possible, just print ' .
+                           'essential informations.',
+                 'help' => 'This help.'
+             )), "\n";
 
         return;
     }
+}
+
 }
 
 __halt_compiler();

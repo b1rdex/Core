@@ -8,7 +8,7 @@
  *
  * New BSD License
  *
- * Copyright © 2007-2015, Hoa community. All rights reserved.
+ * Copyright © 2007-2013, Ivan Enderlin. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -36,104 +36,118 @@
 
 namespace Hoa\Core\Consistency {
 
-use Hoa\Core;
-use Hoa\Stream;
-
 /**
  * Hard-preload.
  */
-define('PATH_EVENT', __DIR__ . DIRECTORY_SEPARATOR . 'Event.php');
-define('PATH_EXCEPTION', __DIR__ . DIRECTORY_SEPARATOR . 'Exception.php');
-define('PATH_DATA', __DIR__ . DIRECTORY_SEPARATOR . 'Data.php');
+$path = __DIR__ . DIRECTORY_SEPARATOR;
+define('PATH_EVENT',     $path . 'Event.php');
+define('PATH_EXCEPTION', $path . 'Exception.php');
+define('PATH_DATA',      $path . 'Data.php');
 
 /**
  * Class Hoa\Core\Consistency.
  *
  * This class manages all classes, importations etc.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Consistency
-{
+
+class Consistency implements \ArrayAccess {
+
     /**
      * One singleton by library family.
      *
-     * @var array
+     * @var \Hoa\Core\Consistency array
      */
-    private static $_multiton = [];
+    private static $_multiton = array();
 
     /**
      * Libraries to considere.
      *
-     * @var array
+     * @var \Hoa\Core\Consistency array
      */
     protected $_from          = null;
 
     /**
      * Library's roots to considere.
      *
-     * @var array
+     * @var \Hoa\Core\Consistency array
      */
-    protected $_roots         = [];
+    protected $_roots         = array();
 
     /**
      * Cache all imports.
      *
-     * @var array
+     * @var \Hoa\Core\Consistency array
      */
-    protected static $_cache  = [];
+    protected static $_cache  = array();
 
     /**
      * Cache all classes informations: path, alias and imported.
      *
-     * @var array
+     * @var \Hoa\Core\Consistency array
      */
-    protected static $_class  = [
+    protected static $_class  = array(
         // Hard-preload.
-        'Hoa\Core\Event' => [
-            'path'  => PATH_EVENT,
-            'alias' => null
-        ],
-        'Hoa\Core\Exception' => [
-            'path'  => PATH_EXCEPTION,
-            'alias' => null
-        ],
-        'Hoa\Core\Data' => [
-            'path'  => PATH_DATA,
-            'alias' => null
-        ]
-    ];
+        'Hoa\Core\Event' => array(
+            'path'     => PATH_EVENT,
+            'alias'    => false,
+            'imported' => false
+        ),
+        'Hoa\Core\Exception' => array(
+            'path'     => PATH_EXCEPTION,
+            'alias'    => false,
+            'imported' => false
+        ),
+        'Hoa\Core\Data' => array(
+            'path'     => PATH_DATA,
+            'alias'    => false,
+            'imported' => false
+        ),
+    );
 
     /**
      * Cache all classes from the current library family.
      * It contains references to self:$_class.
      *
-     * @var array
+     * @var \Hoa\Core\Consistency array
      */
-    protected $__class        = [];
+    protected $__class        = array();
+
+    /**
+     * Whether autoload imported files or not.
+     * Possible values:
+     *     • 0, autoload (normal behavior);
+     *     • 1, load (oneshot, back to autoload after loading files);
+     *     • 2, load* (autoload for all imports).
+     *
+     * @var \Hoa\Core\Consistency bool
+     */
+    protected $_autoload      = false;
 
 
 
     /**
      * Singleton to manage a library family.
      *
+     * @access  public
      * @param   string  $from    Library family's name.
      * @return  void
      */
-    private function __construct($from)
-    {
-        $this->_from = preg_split('#\s*(,|or)\s*#', trim($from, '()'));
-        $parameters  = Core::getInstance()->getParameters();
+    private function __construct ( $from ) {
+
+        $this->_from = preg_split('#\s*(,|or)\s*#', $from);
+        $parameters  = \Hoa\Core::getInstance()->getParameters();
         $wildcard    = $parameters->getFormattedParameter('namespace.prefix.*');
 
-        foreach ($this->_from as $f) {
+        foreach($this->_from as $f)
             $this->setRoot(
                 $parameters->getFormattedParameter('namespace.prefix.' . $f)
                 ?: $wildcard,
                 $f
             );
-        }
 
         return;
     }
@@ -141,296 +155,324 @@ class Consistency
     /**
      * Get the library family's singleton.
      *
-     * @param   string  $namespace    Library family's name.
+     * @access  public
+     * @param   string  $from    Library family's name.
      * @return  \Hoa\Core\Consistency
      */
-    public static function from($namespace)
-    {
-        if (!isset(static::$_multiton[$namespace])) {
+    public static function from ( $namespace ) {
+
+        if(!isset(static::$_multiton[$namespace]))
             static::$_multiton[$namespace] = new static($namespace);
-        }
 
         return static::$_multiton[$namespace];
     }
 
     /**
-     * Import a class, an interface or a trait.
+     * Import, i.e. pre-load, one or many classes. If $load parameters is set
+     * to true, then pre-load is turned to direct-load.
      *
-     * @param   string  $pattern    Pattern.
+     * @access  public
+     * @param   string  $path       Path.
      * @param   bool    $load       Whether loading directly or not.
+     * @param   string  &$family    Finally choosen family.
      * @return  \Hoa\Core\Consistency
+     * @throw   \Hoa\Core\Exception
      */
-    public function import($pattern, $load = false)
-    {
-        foreach ($this->_from as $from) {
-            $this->_import($from . '.' . $pattern, $load);
+    public function import ( $path, $load = null, &$family = null ) {
+
+        $out = false;
+
+        if(   null === $load
+           &&    1 === $load = $this->getAutoload())
+            $this->setAutoload(0);
+
+        $load = (bool) $load;
+
+        foreach($this->_from as $from)
+            foreach($this->_roots[$from] as $root) {
+
+                $family = $from;
+                $out    = $this->_import($path, $load, $from, $root);
+
+                if(true === $out)
+                    break 2;
+            }
+
+        if(false === $out) {
+
+            $trace = debug_backtrace();
+            $file  = $trace[0]['file'];
+
+            foreach(static::$_class as $_ => $bucket)
+                if(is_array($bucket) && $file === $bucket['path'])
+                    break;
+
+            throw new \Hoa\Core\Exception(
+                'Class %s does not exist. This file is required by %s.',
+                0, array(
+                    (1 === count($this->_from)
+                        ? $this->_from[0]
+                        : '(' .  implode(' or ', $this->_from) . ')') .
+                    '\\' . str_replace('.', '\\', $path),
+                    isset($bucket)
+                        ? $bucket['alias'] ?: $_
+                        : $file
+                ));
         }
 
         return $this;
     }
 
     /**
-     * Iterate over each solution found by an import.
+     * Real import method for an one specific root.
      *
-     * @param   string    $pattern     Pattern.
-     * @param   callable  $callback    Callback (also disable cache).
-     * @return  \Hoa\Core\Consistency
-     */
-    public function foreachImport($pattern, $callback)
-    {
-        foreach ($this->_from as $from) {
-            $this->_import($from . '.' . $pattern, false, $callback);
-        }
-
-        return $this;
-    }
-
-    /**
-     * Real import implementation.
-     *
-     * @param   string    $pattern     Pattern.
+     * @access  protected
+     * @param   string    $path        Path.
      * @param   bool      $load        Whether loading directly or not.
-     * @param   callable  $callback    Callback.
+     * @param   string    $from        Library family's name.
+     * @param   string    $root        Root.
+     * @param   callable  $callback    Callback (also disable cache).
      * @return  bool
      */
-    protected function _import($pattern, $load, $callback = null)
-    {
-        $parts = explode('.', $pattern);
+    protected function _import ( $path, $load, $from, $root, $callback = null ) {
 
-        if (!isset($parts[1])) {
-            return false;
-        }
+        if(!empty($from))
+            $all = $from . '.' . $path;
+        else
+            $all = $path;
 
-        if (false !== strpos($pattern, '~')) {
-            $handle = null;
+        if(isset(static::$_cache[$all]) && null === $callback) {
 
-            foreach ($parts as &$part) {
-                if (null !== $handle && '*' !== $handle) {
-                    $part = str_replace('~', $handle, $part);
-                }
+            if(false === $load)
+                return true;
 
-                $handle = $part;
+            $class = str_replace('.', '\\', $all);
+
+            if(isset(static::$_class[$class])) {
+
+                $alias = static::$_class[$class]['alias'];
+
+                return $this->_load($class, false !== $alias, $alias);
             }
         }
 
-        if (false !== strpos($pattern, '*')) {
-            if ('Hoa' !== $parts[0] && 'Hoathis' !== $parts[0]) {
+        static::$_cache[$all] = true;
+        $uncache              = array($all);
+        $edited               = false;
+        $explode              = explode('.', $all);
+        $parts                = array();
+
+        if(false !== strpos($all, '~')) {
+
+            $handle  = array_shift($explode);
+            $parts[] = $handle;
+
+            foreach($explode as $value)
+                if(false !== strpos($value, '~'))
+                    $parts[] = $handle = str_replace('~', $handle, $value);
+                else
+                    $parts[] = $handle = $value;
+
+            $all     = implode('.', $parts);
+            $explode = $parts;
+            $edited  = true;
+
+            if(isset(static::$_cache[$all]) && null === $callback) {
+
+                if(false === $load)
+                    return true;
+
+                $class = str_replace('.', '\\', $all);
+                $alias = static::$_class[$class]['alias'];
+
+                return $this->_load($class, false !== $alias, $alias);
+            }
+
+            static::$_cache[$all] = true;
+            $uncache[]            = $all;
+        }
+
+        if(false !== strpos($all, '*')) {
+
+            $backup     = $explode[0];
+            $explode[0] = $root . $explode[0];
+            $countFrom  = strlen($explode[0]) + 1;
+            $glob       = glob(implode('/', $explode) . '.php');
+
+            if(empty($glob)) {
+
+                foreach($uncache as $un)
+                    unset(static::$_cache[$un]);
+
                 return false;
             }
 
-            $glob     = new \AppendIterator();
-            $ds       = preg_quote(DS);
-            $_pattern = '#' . $ds . $parts[0] . $ds . $parts[1] . $ds . '?$#i';
+            $explode[0] = $backup;
 
-            foreach (resolve('hoa://Library/' . $parts[1], true, true) as $path) {
-                if (0 !== preg_match($_pattern, $path)) {
-                    $glob->append(new \CallbackFilterIterator(
-                        new \GlobIterator(
-                            $path . DS . implode(DS, array_slice($parts, 2)) . '.php',
-                            \GlobIterator::KEY_AS_PATHNAME
-                          | \GlobIterator::CURRENT_AS_SELF
-                          | \GlobIterator::SKIP_DOTS
-                        ),
-                        function ($current, $key) use ($path, $parts) {
-                            $current->__hoa_pattern =
-                                $parts[0] .
-                                '.' .
-                                $parts[1] .
-                                '.' .
-                                str_replace(
-                                    DS,
-                                    '.',
-                                    substr($key, strlen($path) + 1, -4)
-                                );
+            foreach($glob as $value) {
 
-                            return true;
-                        }
-                    ));
+                $out = $this->_import(
+                    substr(
+                        str_replace('/', '.', substr($value, 0, -4)),
+                        $countFrom
+                    ),
+                    $load,
+                    $from,
+                    $root,
+                    $callback
+                );
+
+                if(false === $out) {
+
+                    foreach($uncache as $un)
+                        unset(static::$_cache[$un]);
+
+                    return false;
                 }
-            }
-
-            $out = true;
-
-            foreach ($glob as $filesystem) {
-                $out &= $this->_import($filesystem->__hoa_pattern, $load, $callback);
-            }
-
-            return (bool) $out;
-        }
-
-        $classname = implode('\\', $parts);
-        $imported  = array_key_exists($classname, static::$_class);
-
-        if (false === $imported) {
-            static::$_class[$classname] = [
-                'path'  => null,
-                'alias' => null
-            ];
-
-            $count = count($parts);
-
-            if ($parts[$count - 2] === $parts[$count - 1]) {
-                $alias = implode('\\', array_slice($parts, 0, -1));
-
-                static::$_class[$classname]['alias'] = $alias;
-                static::$_class[$alias]              = $classname;
-                $this->__class[$alias]               = &static::$_class[$alias];
-            }
-        }
-
-        $this->__class[$classname] = &static::$_class[$classname];
-
-        if (true  === $load &&
-            false === static::entityExists($classname, false)) {
-            spl_autoload_call($classname);
-
-            if (null !== $callback &&
-                true === static::entityExists($classname, false)) {
-                $callback($classname);
             }
 
             return true;
         }
 
-        if (null !== $callback) {
-            $callback($classname);
+        if(false === $edited)
+            $parts = $explode;
+
+        $count  = count($parts);
+        $backup = array($parts[0], $parts[1]);
+
+        if(WITH_COMPOSER) {
+
+            $parts[0] = strtolower($parts[0]);
+            $parts[1] = strtolower($parts[1]);
         }
+
+        $parts[0] = $root . $parts[0];
+        $path     = implode('/',  $parts) . '.php';
+
+        if(!file_exists($path)) {
+
+            $parts[] = $parts[$count - 1];
+            $path    = implode('/',  $parts) . '.php';
+            ++$count;
+
+            if(!file_exists($path)) {
+
+                foreach($uncache as $un)
+                    unset(static::$_cache[$un]);
+
+                return false;
+            }
+        }
+
+        $parts[0] = $backup[0];
+        $parts[1] = $backup[1];
+        $entry    = $parts[$count - 2] == $parts[$count - 1];
+        $class    = implode('\\', $parts);
+        $alias    = false;
+
+        if(isset(static::$_class[$class])) {
+
+            if(null !== $callback)
+                $callback($class);
+
+            return true;
+        }
+
+        if(true === $entry) {
+
+            array_pop($parts);
+            $alias                  = implode('\\', $parts);
+            static::$_class[$alias] = $class;
+            $this->__class[$alias]  = &static::$_class[$alias];
+        }
+
+        static::$_class[$class] = array(
+            'path'     => $path,
+            'alias'    => $alias,
+            'imported' => false
+        );
+        $this->__class[$class]  = &static::$_class[$class];
+
+        if(false === $load) {
+
+            if(null !== $callback)
+                $callback($class);
+
+            return true;
+        }
+
+        $out = $this->_load($class, $entry, $alias);
+
+        if(null !== $callback)
+            $callback($class);
+
+        return $out;
+    }
+
+    /**
+     * Load a class.
+     *
+     * @access  protected
+     * @param   string    $class    Classname.
+     * @param   bool      $entry    Whether it is an entry class.
+     * @param   string    $alias    Alias classname.
+     * @return  bool
+     */
+    protected function _load ( $class, $entry = false, $alias = false ) {
+
+        $bucket = &static::$_class[$class];
+
+        if(true === $bucket['imported'])
+            return true;
+
+        require $bucket['path'];
+
+        $bucket['imported'] = true;
+
+        if(true === $entry && false !== $alias)
+            class_alias($class, $alias);
 
         return true;
     }
 
     /**
-     * Autoloader.
+     * Iterate over each solution found by an import.
      *
-     * @param   string  $classname    Classname.
-     * @return  bool
+     * @access  public
+     * @param   string    $path        Path.
+     * @param   callable  $callback    Callback (also disable cache).
+     * @return  void
      */
-    public static function autoload($classname)
-    {
-        if (false === strpos($classname, '\\')) {
-            return false;
-        }
+    public function foreachImport ( $path, $callback ) {
 
-        $classname = ltrim($classname, '\\');
+        foreach($this->_from as $from)
+            foreach($this->_roots[$from] as $root) {
 
-        // Hard-preload.
-        if ('Hoa\Core' === substr($classname, 0, 8) &&
-            false      !== ($pos = strpos($classname, '\\', 10)) &&
-            'Bin\\'    !== substr($classname, 9, 4)) {
-            require static::$_class[substr($classname, 0, $pos)]['path'];
-
-            return true;
-        }
-
-        $head = substr($classname, 0, strpos($classname, '\\'));
-
-        if (false === array_key_exists($classname, static::$_class)) {
-            $_classname = str_replace('\\', '.', $classname);
-            $out        = from($head)->_import($_classname, true);
-
-            if (false === static::entityExists($classname)) {
-                $out = from($head)->_import($_classname . '.~', true);
+                $family = $from;
+                $out    = $this->_import($path, false, $from, $root, $callback);
             }
 
-            return $out;
-        } elseif (is_string($original = static::$_class[$classname])) {
-            spl_autoload_call($original);
-
-            return true;
-        }
-
-        $roots             = from($head)->getRoot();
-        $classpath         = str_replace('\\', DS, $classname) . '.php';
-        $classpathExtended = str_replace(
-            '\\',
-            DS,
-            $classname . substr($classname, strrpos('\\', $classname, 1))
-        ) . '.php';
-
-        $gotcha = false;
-
-        foreach ($roots as $vendor => $_roots) {
-            foreach ($_roots as $root) {
-                if (true === file_exists($path = $root . $classpath) ||
-                    true === file_exists($path = $root . $classpathExtended)) {
-                    $gotcha = true;
-                    require $path;
-                    static::$_class[$classname]['path'] = $path;
-
-                    break 2;
-                }
-            }
-        }
-
-        return $gotcha;
-    }
-
-    /**
-     * Dynamic new, i.e. a native factory (import + load + instance).
-     *
-     * @param   string  $classname    Classname.
-     * @param   array   $arguments    Constructor's arguments.
-     * @return  object
-     * @throws  \Hoa\Core\Exception
-     */
-    public static function dnew($classname, Array $arguments = [])
-    {
-        $classname = ltrim($classname, '\\');
-
-        if (!class_exists($classname, false)) {
-            $head = substr($classname, 0, $pos = strpos($classname, '\\'));
-            $tail = str_replace('\\', '.', substr($classname, $pos + 1));
-            $from = from($head);
-
-            foreach ([$tail, $tail . '.~'] as $_tail) {
-                foreach ($from->getFroms() as $_from) {
-                    $break = false;
-                    $from->_import(
-                        $_from . '.' . $_tail,
-                        true,
-                        function ($_classname) use (&$break, &$classname) {
-                            $classname = $_classname;
-                            $break     = true;
-                        }
-                    );
-
-                    if (true === $break) {
-                        break 2;
-                    }
-                }
-            }
-        }
-
-        $class = new \ReflectionClass($classname);
-
-        if (empty($arguments) || false === $class->hasMethod('__construct')) {
-            return $class->newInstance();
-        }
-
-        return $class->newInstanceArgs($arguments);
+        return;
     }
 
     /**
      * Set the root of the current library family.
      *
+     * @access  public
      * @param   bool    $root    Root.
      * @param   string  $from    Library family's name (if null, first family
      *                           will be choosen).
      * @return  \Hoa\Core\Consistency
      */
-    public function setRoot($root, $from = null)
-    {
-        if (null === $from) {
+    public function setRoot ( $root, $from = null ) {
+
+        if(null === $from)
             $from = $this->_from[0];
-        }
 
-        if (!isset($this->_roots[$from])) {
-            $this->_roots[$from] = [];
-        }
+        $this->_roots[$from] = preg_split('#(?<!\\\);#', $root);
 
-        foreach (explode(RS, $root) as $r) {
-            $this->_roots[$from][] = rtrim($r, '/\\') . DS;
-        }
+        foreach($this->_roots[$from] as &$freshroot)
+            $freshroot = str_replace('\;', ';', $freshroot);
 
         return $this;
     }
@@ -438,205 +480,328 @@ class Consistency
     /**
      * Get roots of the current library family.
      *
+     * @access  public
      * @return  array
      */
-    public function getRoot()
-    {
+    public function getRoot ( ) {
+
         return $this->_roots;
     }
 
     /**
-     * Get froms.
+     * To be conform with \ArrayAccess.
      *
-     * @return  array
+     * @access  public
+     * @param   mixed  $offset    Offset.
+     * @return  bool
      */
-    public function getFroms()
-    {
-        return $this->_from;
+    public function offsetExists ( $offset ) {
+
+        return false;
+    }
+
+    /**
+     * Use options in the importation flow.
+     * E.g:
+     *     from('Hoa')
+     *
+     *     ['load']
+     *     -> import('Cache.Memoize');
+     * is strictly equivalent to:
+     *     from('Hoa')
+     *     -> import('Cache.Memoize', true);
+     * It's just funnier and more beautiful. Easter egg \o/.
+     * Options could be a string or an array. Current recognized options are:
+     *     • 'root' => 'new/root', equivalent to setRoot('new/root');
+     *     • 'load', equivalent to setAutoload(1);
+     *     • 'load*', equivalent to setAutoload(2);
+     *     • 'autoload', equivalent to setAutoload(0);
+     *     • '…' (unrecognized option), equivalent to setRoot(…).
+     * Obviously, we can combine options:
+     *     [['load', 'root' => 'new/root']]
+     *
+     * @access  public
+     * @param   mixed  $options    Options.
+     * @return  \Hoa\Core\Consistency
+     */
+    public function offsetGet ( $options ) {
+
+        foreach((array) $options as $option => $value)
+            switch("$option") {
+
+                case 'root':
+                    $this->setRoot($value);
+                  break;
+
+                default:
+                    switch($value) {
+
+                        case 'load':
+                            $this->setAutoload(1);
+                          break;
+
+                        case 'load*':
+                            $this->setAutoload(2);
+                          break;
+
+                        case 'autoload':
+                            $this->setAutoload(0);
+                          break;
+
+                        default:
+                            $this->setRoot($value);
+                    }
+            }
+
+        return $this;
+    }
+
+    /**
+     * To be conform with \ArrayAccess.
+     *
+     * @access  public
+     * @param   mixed  $offset    Offset.
+     * @param   mixed  $offset    Value.
+     * @return  bool
+     */
+    public function offsetSet ( $offset, $value ) {
+
+        return false;
+    }
+
+    /**
+     * To be conform with \ArrayAccess.
+     *
+     * @access  public
+     * @param   mixed  $offset    Offset.
+     * @return  bool
+     */
+    public function offsetUnset ( $offset ) {
+
+        return false;
+    }
+
+    /**
+     * Set autoload.
+     *
+     * @access  public
+     * @param   bool  $autoload    Autoload.
+     * @return  bool
+     */
+    public function setAutoload ( $autoload ) {
+
+        $old             = $this->_autoload;
+        $this->_autoload = $autoload;
+
+        return $old;
+    }
+
+    /**
+     * Get autoload.
+     *
+     * @access  public
+     * @return  bool
+     */
+    public function getAutoload ( ) {
+
+        return $this->_autoload;
     }
 
     /**
      * Get imported classes from the current library family.
      *
+     * @access  public
      * @return  array
      */
-    public function getImportedClasses()
-    {
+    public function getImportedClasses ( ) {
+
         return $this->__class;
     }
 
     /**
      * Get imported classes from all library families.
      *
+     * @access  public
      * @return  array
      */
-    public static function getAllImportedClasses()
-    {
+    public static function getAllImportedClasses ( ) {
+
         return static::$_class;
     }
 
     /**
-     * Get the shortest name for an entity.
+     * Get the shortest name for a class, i.e. if an alias exists, return it,
+     * else return the normal classname.
      *
-     * @param   string  $entityName    Entity name.
+     * @access  public
+     * @param   string  $classname    Classname.
      * @return  string
      */
-    public static function getEntityShortestName($entityName)
-    {
-        $parts = explode('\\', $entityName);
-        $count = count($parts);
+    public static function getClassShortestName ( $classname ) {
 
-        if ($parts[$count - 2] === $parts[$count - 1]) {
-            return implode('\\', array_slice($parts, 0, -1));
+        if(!isset(static::$_class[$classname]))
+            return $classname;
+
+        if(is_string(static::$_class[$classname]))
+            return $classname;
+
+        return static::$_class[$classname]['alias'] ?: $classname;
+    }
+
+    /**
+     * Autoloader.
+     *
+     * @access  public
+     * @param   string  $classname    Classname.
+     * @return  bool
+     */
+    public static function autoload ( $classname ) {
+
+        $classname = ltrim($classname, '\\');
+
+        // Hard-preload.
+        if(   'Hoa\Core' === substr($classname, 0, 8)
+           &&      false !== $pos = strpos($classname, '\\', 10))
+            $classname = substr($classname, 0, $pos);
+
+        $classes = static::getAllImportedClasses();
+
+        if(!isset($classes[$classname]))
+            return false;
+
+        $class = &$classes[$classname];
+
+        if(is_string($class)) {
+
+            $classname = $class;
+            $class     = &$classes[$class];
         }
 
-        return $entityName;
+        require $class['path'];
+
+        $class['imported'] = true;
+
+        if(false !== $class['alias'])
+            class_alias($classname, $class['alias']);
+
+        return true;
     }
 
     /**
-     * Check if an entity exists (class, interface, trait…).
+     * Load a class from its classname.
      *
-     * @param   string  $entityName    Entity name.
-     * @param   bool    $autoloader    Run autoloader if necessary.
-     * @return  bool
+     * @access  public
+     * @param   string  $classname    Classname.
+     * @return  string
+     * @throw   \Hoa\Core\Exception
      */
-    public static function entityExists($entityName, $autoloader = false)
-    {
-        return
-            class_exists($entityName, $autoloader) ||
-            interface_exists($entityName, false)   ||
-            trait_exists($entityName, false);
+    public static function autoloadFromClass ( $classname ) {
+
+        $head = trim(str_replace(
+                    '\\',
+                    '.',
+                    substr($classname, 0, $pos = strpos($classname, '\\'))
+                ), '()');
+        $tail = substr($classname, $pos + 1);
+
+        static::from($head)
+            ->import(str_replace('\\', '.', $tail), true, $family);
+
+        return $family . '\\' . $tail;
     }
 
     /**
-     * Declare a flex entity (for nested library).
+     * Dynamic new, i.e. a native factory (import + load + instance).
      *
-     * @param   string  $entityName    Entity name.
-     * @return  bool
+     * @access  public
+     * @param   string  $classname    Classname.
+     * @param   array   $arguments    Constructor's arguments.
+     * @return  object
+     * @throw   \Hoa\Core\Exception
      */
-    public static function flexEntity($entityName)
-    {
-        return class_alias(
-            $entityName,
-            static::getEntityShortestName($entityName)
+    public static function dnew ( $classname, Array $arguments = array() ) {
+
+        $classname = ltrim($classname, '\\');
+
+        if(!class_exists($classname, false))
+            $classname = static::autoloadFromClass($classname);
+
+        $class = new \ReflectionClass($classname);
+
+        if(empty($arguments) || false === $class->hasMethod('__construct'))
+            return $class->newInstance();
+
+        return $class->newInstanceArgs($arguments);
+    }
+
+    /**
+     * Enable import when unserializing.
+     *
+     * When unserializing an object, if the class is not imported, it will
+     * fails. This method will automatically import class when needed.
+     * Note: for now, this is only restricted to Hoa autoloader, i.e. it does
+     * not take into account other existing autoloader.
+     *
+     * @access  public
+     * @return  void
+     */
+    public static function enableImportWhenUnserializing ( ) {
+
+        ini_set(
+            'unserialize_callback_func',
+            get_called_class() . '::autoloadFromClass'
         );
+
+        return;
+    }
+
+    /**
+     * Disable import when unserializing.
+     *
+     * @access  public
+     * @return  void
+     */
+    public static function disableImportWhenUnserializing ( ) {
+
+        ini_restore('unserialize_callback_func');
     }
 
     /**
      * Whether a word is reserved or not.
      *
+     * @access  public
      * @param   string  $word    Word.
      * @return  void
      */
-    public static function isKeyword($word)
-    {
-        static $_list = [
-            // PHP keywords.
-            '__halt_compiler',
-            'abstract',
-            'and',
-            'array',
-            'as',
-            'bool',
-            'break',
-            'callable',
-            'case',
-            'catch',
-            'class',
-            'clone',
-            'const',
-            'continue',
-            'declare',
-            'default',
-            'die',
-            'do',
-            'echo',
-            'else',
-            'elseif',
-            'empty',
-            'enddeclare',
-            'endfor',
-            'endforeach',
-            'endif',
-            'endswitch',
-            'endwhile',
-            'eval',
-            'exit',
-            'extends',
-            'false',
-            'final',
-            'float',
-            'for',
-            'foreach',
-            'function',
-            'global',
-            'goto',
-            'if',
-            'implements',
-            'include',
-            'include_once',
-            'instanceof',
-            'insteadof',
-            'int',
-            'interface',
-            'isset',
-            'list',
-            'mixed',
-            'namespace',
-            'new',
-            'null',
-            'numeric',
-            'object',
-            'or',
-            'print',
-            'private',
-            'protected',
-            'public',
-            'require',
-            'require_once',
-            'resource',
-            'return',
-            'static',
-            'string',
-            'switch',
-            'throw',
-            'trait',
-            'true',
-            'try',
-            'unset',
-            'use',
-            'var',
-            'while',
-            'xor',
-            'yield',
+    public static function isKeyword ( $word ) {
 
+        static $_list = array(
+            // PHP keywords.
+            '__halt_compiler', 'abstract',     'and',           'array',
+            'as',              'break',        'callable',      'case',
+            'catch',           'class',        'clone',         'const',
+            'continue',        'declare',      'default',       'die',
+            'do',              'echo',         'else',          'elseif',
+            'empty',           'enddeclare',   'endfor',        'endforeach',
+            'endif',           'endswitch',    'endwhile',      'eval',
+            'exit',            'extends',      'final',         'for',
+            'foreach',         'function',     'global',        'goto',
+            'if',              'implements',   'include',       'include_once',
+            'instanceof',      'insteadof',    'interface',     'isset',
+            'list',            'namespace',    'new',           'or',
+            'print',           'private',      'protected',     'public',
+            'require',         'require_once', 'return',        'static',
+            'switch',          'throw',        'trait',         'try',
+            'unset',           'use',          'var',           'while',
+            'xor',
             // Compile-time constants.
-            '__class__',
-            '__dir__',
-            '__file__',
-            '__function__',
-            '__line__',
-            '__method__',
-            '__namespace__',
-            '__trait__'
-        ];
+            '__class__',       '__dir__',      '__file__',      '__function__',
+            '__line__',        '__method__',   '__namespace__', '__trait__'
+        );
 
         return in_array(strtolower($word), $_list);
     }
 
-    /**
-     * Whether an ID is a valid PHP identifier.
-     *
-     * @param   string  $id    ID.
-     * @return  bool
-     */
-    public static function isIdentifier($id)
-    {
-        return 0 !== preg_match(
-            '#^[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*$#',
-            $id
-        );
-    }
 }
 
 /**
@@ -646,22 +811,24 @@ class Consistency
  * closure, they all have the same behaviour. This callable is an extension of
  * native PHP callable (aka callback) to integrate Hoa's structures.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Xcallable
-{
+
+class Xcallable {
+
     /**
      * Callback, with the PHP format.
      *
-     * @var mixed
+     * @var \Hoa\Core\Consistency\Xcallable mixed
      */
     protected $_callback = null;
 
     /**
      * Callable hash.
      *
-     * @var string
+     * @var \Hoa\Core\Consistency\Xcallable string
      */
     protected $_hash     = null;
 
@@ -670,47 +837,38 @@ class Xcallable
     /**
      * Build a callback.
      * Accepted forms:
-     *     • 'function';
-     *     • 'class::method';
-     *     • 'class', 'method';
-     *     • $object, 'method';
-     *     • $object, '';
-     *     • function ( … ) { … };
-     *     • ['class', 'method'];
-     *     • [$object, 'method'].
+     *     * 'function';
+     *     * 'class::method';
+     *     * 'class', 'method';
+     *     * $object, 'method';
+     *     * $object, '';
+     *     * function ( … ) { … }.
      *
+     * @access  public
      * @param   mixed   $call    First callable part.
      * @param   mixed   $able    Second callable part (if needed).
      * @return  mixed
      */
-    public function __construct($call, $able = '')
-    {
-        if (null === $call) {
-            return null;
-        }
+    public function __construct ( $call, $able = '' ) {
 
-        if ($call instanceof \Closure) {
+        if(null === $call)
+            return null;
+
+        if($call instanceof \Closure) {
+
             $this->_callback = $call;
 
             return;
         }
 
-        if (!is_string($able)) {
-            throw new Core\Exception(
-                'Bad callback form.',
-                0
-            );
-        }
+        if(!is_string($able))
+            throw new \Hoa\Core\Exception(
+                'Bad callback form.', 0);
 
-        if ('' === $able) {
-            if (is_string($call)) {
-                if (false === strpos($call, '::')) {
-                    if (!function_exists($call)) {
-                        throw new Core\Exception(
-                            'Bad callback form.',
-                            1
-                        );
-                    }
+        if('' === $able)
+            if(is_string($call)) {
+
+                if(false === strpos($call, '::')) {
 
                     $this->_callback = $call;
 
@@ -718,32 +876,15 @@ class Xcallable
                 }
 
                 list($call, $able) = explode('::', $call);
-            } elseif (is_object($call)) {
-                if ($call instanceof Stream\IStream\Out) {
-                    $able = null;
-                } elseif (method_exists($call, '__invoke')) {
-                    $able = '__invoke';
-                } else {
-                    throw new Core\Exception(
-                        'Bad callback form.',
-                        2
-                    );
-                }
-            } elseif (is_array($call) && isset($call[0])) {
-                if (!isset($call[1])) {
-                    return $this->__construct($call[0]);
-                }
-
-                return $this->__construct($call[0], $call[1]);
-            } else {
-                throw new Core\Exception(
-                    'Bad callback form.',
-                    3
-                );
             }
-        }
+            elseif(   is_object($call)
+                   && $call instanceof \Hoa\Stream\IStream\Out)
+                $able = null;
+            else
+                throw new \Hoa\Core\Exception(
+                    'Bad callback form.', 1);
 
-        $this->_callback = [$call, $able];
+        $this->_callback = array($call, $able);
 
         return;
     }
@@ -751,11 +892,12 @@ class Xcallable
     /**
      * Call the callable.
      *
+     * @access  public
      * @param   ...
      * @return  mixed
      */
-    public function __invoke()
-    {
+    public function __invoke ( ) {
+
         $arguments = func_get_args();
         $valid     = $this->getValidCallback($arguments);
 
@@ -765,60 +907,58 @@ class Xcallable
     /**
      * Distribute arguments according to an array.
      *
+     * @access  public
      * @param   array  $arguments    Arguments.
      * @return  mixed
      */
-    public function distributeArguments(Array $arguments)
-    {
-        return call_user_func_array([$this, '__invoke'], $arguments);
+    public function distributeArguments ( Array $arguments ) {
+
+        return call_user_func_array(array($this, '__invoke'), $arguments);
     }
 
     /**
      * Get a valid callback in the PHP meaning.
      *
+     * @access  public
      * @param   array   &$arguments    Arguments (could determine method on an
      *                                 object if not precised).
      * @return  mixed
      */
-    public function getValidCallback(Array &$arguments = [])
-    {
+    public function getValidCallback ( Array &$arguments ) {
+
         $callback = $this->_callback;
         $head     = null;
 
-        if (isset($arguments[0])) {
+        if(isset($arguments[0]))
             $head = &$arguments[0];
-        }
 
         // If method is undetermined, we find it (we understand event bucket and
         // stream).
-        if (null !== $head &&
-            is_array($callback) &&
-            null === $callback[1]) {
-            if ($head instanceof Core\Event\Bucket) {
+        if(   null !== $head
+           && is_array($callback)
+           && null === $callback[1]) {
+
+            if($head instanceof \Hoa\Core\Event\Bucket)
                 $head = $head->getData();
-            }
 
-            switch ($type = gettype($head)) {
+            switch($type = gettype($head)) {
+
                 case 'string':
-                    if (1 === strlen($head)) {
+                    if(1 === strlen($head))
                         $method = 'writeCharacter';
-                    } else {
+                    else
                         $method = 'writeString';
-                    }
-
-                    break;
+                  break;
 
                 case 'boolean':
                 case 'integer':
                 case 'array':
                     $method = 'write' . ucfirst($type);
-
-                    break;
+                  break;
 
                 case 'double':
                     $method = 'writeFloat';
-
-                    break;
+                  break;
 
                 default:
                     $method = 'writeAll';
@@ -839,32 +979,29 @@ class Xcallable
      *     * object(…)#…::…;
      *     * closure(…).
      *
+     * @access  public
      * @return  string
      */
-    public function getHash()
-    {
-        if (null !== $this->_hash) {
+    public function getHash ( ) {
+
+        if(null !== $this->_hash)
             return $this->_hash;
-        }
 
         $_ = &$this->_callback;
 
-        if (is_string($_)) {
+        if(is_string($_))
             return $this->_hash = 'function#' . $_;
-        }
 
-        if (is_array($_)) {
-            return
-                $this->_hash =
-                    (is_object($_[0])
-                        ? 'object(' . spl_object_hash($_[0]) . ')' .
-                          '#' . get_class($_[0])
-                        : 'class#' . $_[0]) .
-                    '::' .
-                    (null !== $_[1]
-                        ? $_[1]
-                        : '???');
-        }
+        if(is_array($_))
+            return $this->_hash =
+                       (is_object($_[0])
+                           ? 'object(' . spl_object_hash($_[0]) . ')' .
+                             '#' . get_class($_[0])
+                           : 'class#' . $_[0]) .
+                       '::' .
+                       (null !== $_[1]
+                           ? $_[1]
+                           : '???');
 
         return $this->_hash = 'closure(' . spl_object_hash($_) . ')';
     }
@@ -872,36 +1009,30 @@ class Xcallable
     /**
      * Get appropriated reflection instance.
      *
+     * @access  public
      * @param   ...
      * @return  \Reflector
      */
-    public function getReflection()
-    {
+    public function getReflection ( ) {
+
         $arguments = func_get_args();
         $valid     = $this->getValidCallback($arguments);
 
-        if (is_string($valid)) {
+        if(is_string($valid))
             return new \ReflectionFunction($valid);
-        }
 
-        if ($valid instanceof \Closure) {
+        if($valid instanceof \Closure)
             return new \ReflectionFunction($valid);
-        }
 
-        if (is_array($valid)) {
-            if (is_string($valid[0])) {
-                if (false === method_exists($valid[0], $valid[1])) {
-                    return new \ReflectionClass($valid[0]);
-                }
+        if(is_array($valid)) {
 
+            if(is_string($valid[0]))
                 return new \ReflectionMethod($valid[0], $valid[1]);
-            }
 
             $object = new \ReflectionObject($valid[0]);
 
-            if (null === $valid[1]) {
+            if(null === $valid[1])
                 return $object;
-            }
 
             return $object->getMethod($valid[1]);
         }
@@ -910,10 +1041,11 @@ class Xcallable
     /**
      * Return the hash.
      *
+     * @access  public
      * @return  string
      */
-    public function __toString()
-    {
+    public function __toString ( ) {
+
         return $this->getHash();
     }
 }
@@ -922,86 +1054,49 @@ class Xcallable
 
 namespace {
 
-
-/**
- * Implement a fake trait_exists function.
- *
- * @param   string  $traitname    Traitname.
- * @param   bool    $autoload     Autoload.
- * @return  bool
- */
-if (!function_exists('trait_exists')) {
-    function trait_exists($traitname, $autoload = true)
-    {
-        if (true == $autoload) {
-            class_exists($traitname, true);
-        }
-
-        return false;
-    }
-}
-
-if (70000 > PHP_VERSION_ID && false === interface_exists('Throwable', false)) {
-    /**
-     * Implement a fake Throwable class, introduced in PHP7.0.
-     */
-    interface Throwable
-    {
-        public function getMessage();
-        public function getCode();
-        public function getFile();
-        public function getLine();
-        public function getTrace();
-        public function getPrevious();
-        public function getTraceAsString();
-        public function __toString();
-    }
-}
-
 /**
  * Alias for \Hoa\Core\Consistency::from().
  *
- * @param   string  $namespace    Library family's name.
+ * @access  public
+ * @param   string  $from    Library family's name.
  * @return  \Hoa\Core\Consistency
  */
-if (!function_exists('from')) {
-    function from($namespace)
-    {
-        return Hoa\Core\Consistency::from($namespace);
-    }
-}
+if(!ƒ('from')) {
+function from ( $namespace ) {
+
+    return \Hoa\Core\Consistency::from($namespace);
+}}
 
 /**
  * Alias of \Hoa\Core\Consistency::dnew().
  *
+ * @access  public
  * @param   string  $classname    Classname.
  * @param   array   $arguments    Constructor's arguments.
  * @return  object
  */
-if (!function_exists('dnew')) {
-    function dnew($classname, Array $arguments = [])
-    {
-        return Hoa\Core\Consistency::dnew($classname, $arguments);
-    }
-}
+if(!ƒ('dnew')) {
+function dnew ( $classname, Array $arguments = array() ) {
+
+    return \Hoa\Core\Consistency::dnew($classname, $arguments);
+}}
 
 /**
  * Alias of \Hoa\Core\Consistency\Xcallable.
  *
+ * @access  public
  * @param   mixed   $call    First callable part.
  * @param   mixed   $able    Second callable part (if needed).
  * @return  mixed
  */
-if (!function_exists('xcallable')) {
-    function xcallable($call, $able = '')
-    {
-        if ($call instanceof Hoa\Core\Consistency\Xcallable) {
-            return $call;
-        }
+if(!ƒ('xcallable')) {
+function xcallable ( $call, $able = '' ) {
 
-        return new Hoa\Core\Consistency\Xcallable($call, $able);
-    }
-}
+    if($call instanceof \Hoa\Core\Consistency\Xcallable)
+        return $call;
+
+    return new \Hoa\Core\Consistency\Xcallable($call, $able);
+}}
 
 /**
  * Curry.
@@ -1019,79 +1114,60 @@ if (!function_exists('xcallable')) {
  * The “…” character is the HORIZONTAL ELLIPSIS Unicode character (Unicode:
  * 2026, UTF-8: E2 80 A6).
  *
+ * @access  public
  * @param   mixed  $callable    Callable (two parts).
  * @param   ...    ...          Arguments.
  * @return  \Closure
  */
-if (!function_exists('curry')) {
-    function curry($callable)
-    {
-        $arguments = func_get_args();
-        array_shift($arguments);
-        $ii        = array_keys($arguments, …, true);
+if(!ƒ('curry')) {
+function curry ( $callable ) {
 
-        return function () use ($callable, $arguments, $ii) {
-            return call_user_func_array(
-                $callable,
-                array_replace($arguments, array_combine($ii, func_get_args()))
-            );
-        };
-    }
-}
+    $arguments = func_get_args();
+    array_shift($arguments);
+    $ii        = array_keys($arguments, …, true);
+
+    return function ( ) use ( $callable, $arguments, $ii ) {
+
+        return call_user_func_array(
+            $callable,
+            array_replace($arguments, array_combine($ii, func_get_args()))
+        );
+    };
+}}
 
 /**
  * Same as curry() but where all arguments are references.
  *
+ * @access  public
  * @param   mixed  &$callable    Callable (two parts).
  * @param   ...    &...          Arguments.
  * @return  \Closure
  */
-if (!function_exists('curry_ref')) {
-    function curry_ref(
-        &$callable,
-        &$a = null,
-        &$b = null,
-        &$c = null,
-        &$d = null,
-        &$e = null,
-        &$f = null,
-        &$g = null,
-        &$h = null,
-        &$i = null,
-        &$j = null,
-        &$k = null,
-        &$l = null,
-        &$m = null,
-        &$n = null,
-        &$o = null,
-        &$p = null,
-        &$q = null,
-        &$r = null,
-        &$s = null,
-        &$t = null,
-        &$u = null,
-        &$v = null,
-        &$w = null,
-        &$x = null,
-        &$y = null,
-        &$z = null
-    ) {
-        $arguments = [];
+if(!ƒ('curry_ref')) {
+function curry_ref ( &$callable, &$a = null, &$b = null, &$c = null, &$d = null,
+                                 &$e = null, &$f = null, &$g = null, &$h = null,
+                                 &$i = null, &$j = null, &$k = null, &$l = null,
+                                 &$m = null, &$n = null, &$o = null, &$p = null,
+                                 &$q = null, &$r = null, &$s = null, &$t = null,
+                                 &$u = null, &$v = null, &$w = null, &$x = null,
+                                 &$y = null, &$z = null ) {
 
-        for ($i = 0, $max = func_num_args() - 1; $i < $max; ++$i) {
-            $arguments[] = &${chr(97 + $i)};
-        }
+    $handle    = func_get_args();
+    $arguments = array();
 
-        $ii = array_keys($arguments, …, true);
+    for($i = 0, $max = func_num_args() - 1; $i < $max; ++$i)
+        $arguments[] = &${chr(97 + $i)};
 
-        return function () use (&$callable, &$arguments, $ii) {
-            return call_user_func_array(
-                $callable,
-                array_replace($arguments, array_combine($ii, func_get_args()))
-            );
-        };
-    }
-}
+    $ii        = array_keys($arguments, …, true);
+
+    return function ( ) use ( &$callable, &$arguments, $ii ) {
+
+        return call_user_func_array(
+            $callable,
+            array_replace($arguments, array_combine($ii, func_get_args()))
+        );
+    };
+}}
 
 /**
  * Make the alias automatically (because it's not imported with the import()
@@ -1103,5 +1179,10 @@ class_alias('Hoa\Core\Consistency\Consistency', 'Hoa\Core\Consistency');
  * Set autoloader.
  */
 spl_autoload_register('\Hoa\Core\Consistency::autoload');
+
+/**
+ * Auto-enable import when unserializing.
+ */
+Hoa\Core\Consistency::enableImportWhenUnserializing();
 
 }

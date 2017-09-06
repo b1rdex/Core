@@ -8,7 +8,7 @@
  *
  * New BSD License
  *
- * Copyright © 2007-2015, Hoa community. All rights reserved.
+ * Copyright © 2007-2013, Ivan Enderlin. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -33,22 +33,21 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+
 namespace Hoa\Core\Protocol {
 
-use Hoa\Core;
-
-/*
+/**
  * Class \Hoa\Core\Protocol.
  *
  * Abstract class for all hoa://'s components.
  *
  * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
- * @copyright  Copyright © 2007-2015 Ivan Enderlin.
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
 
-abstract class Protocol implements \ArrayAccess, \IteratorAggregate
-{
+abstract class Protocol implements \ArrayAccess, \IteratorAggregate {
+
     /**
      * No resolution value.
      *
@@ -59,30 +58,30 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
     /**
      * Component's name.
      *
-     * @var string
+     * @var \Hoa\Core\Protocol string
      */
     protected $_name       = null;
 
     /**
      * Path for the reach() method.
      *
-     * @var string
+     * @var \Hoa\Core\Protocol string
      */
     protected $_reach      = null;
 
     /**
      * Collections of sub-components.
      *
-     * @var array
+     * @var \Hoa\Core\Protocol array
      */
-    private $_components   = [];
+    private $_components   = array();
 
     /**
      * Cache of resolver.
      *
-     * @var array
+     * @var \Hoa\Core\Protocol array
      */
-    private static $_cache = [];
+    private static $_cache = array();
 
 
 
@@ -92,19 +91,18 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
      * overload the $this->_name property), we can set the $this->_name property
      * dynamically. So usefull to create components on the fly…
      *
+     * @access  public
      * @param   string  $name     Component's name.
      * @param   string  $reach    Path for the reach() method.
      * @return  void
      */
-    public function __construct($name = null, $reach = null)
-    {
-        if (null !== $name) {
-            $this->_name = $name;
-        }
+    public function __construct ( $name = null, $reach = null ) {
 
-        if (null !== $reach) {
+        if(null !== $name)
+            $this->_name = $name;
+
+        if(null !== $reach)
             $this->_reach = $reach;
-        }
 
         return;
     }
@@ -112,32 +110,26 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
     /**
      * Add a component.
      *
+     * @access  public
      * @param   string              $name         Component name. If null, will
      *                                            be set to name of $component.
      * @param   \Hoa\Core\Protocol  $component    Component to add.
      * @return  \Hoa\Core\Protocol
      * @throws  \Hoa\Core\Exception
      */
-    public function offsetSet($name, $component)
-    {
-        if (!($component instanceof self)) {
-            throw new Core\Exception(
-                'Component must extend %s.',
-                0,
-                __CLASS__
-            );
-        }
+    public function offsetSet ( $name, $component ) {
 
-        if (empty($name)) {
+        if(!($component instanceof Protocol))
+            throw new \Hoa\Core\Exception(
+                'Component must extend %s.', 0, __CLASS__);
+
+        if(empty($name))
             $name = $component->getName();
-        }
 
-        if (empty($name)) {
-            throw new Core\Exception(
+        if(empty($name))
+            throw new \Hoa\Core\Exception(
                 'Cannot add a component to the protocol hoa:// without a name.',
-                1
-            );
-        }
+                1);
 
         $this->_components[$name] = $component;
 
@@ -147,19 +139,16 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
     /**
      * Get a specific component.
      *
+     * @access  public
      * @param   string  $name    Component name.
      * @return  \Hoa\Core\Protocol
-     * @throws  \Hoa\Core\Exception
+     * @throw   \Hoa\Core\Exception
      */
-    public function offsetGet($name)
-    {
-        if (!isset($this[$name])) {
-            throw new Core\Exception(
-                'Component %s does not exist.',
-                2,
-                $name
-            );
-        }
+    public function offsetGet ( $name ) {
+
+        if(!isset($this[$name]))
+            throw new \Hoa\Core\Exception(
+                'Component %s does not exist.', 2, $name);
 
         return $this->_components[$name];
     }
@@ -167,22 +156,24 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
     /**
      * Check if a component exists.
      *
+     * @access  public
      * @param   string  $name    Component name.
      * @return  bool
      */
-    public function offsetExists($name)
-    {
+    public function offsetExists ( $name ) {
+
         return array_key_exists($name, $this->_components);
     }
 
     /**
      * Remove a component.
      *
+     * @access  public
      * @param   string  $name    Component name to remove.
      * @return  \Hoa\Core\Protocol
      */
-    public function offsetUnset($name)
-    {
+    public function offsetUnset ( $name ) {
+
         unset($this->_components[$name]);
 
         return;
@@ -192,76 +183,51 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
      * Front method for resolving a path. Please, look the $this->_resolve()
      * method.
      *
+     * @access  public
      * @param   string  $path      Path to resolve.
      * @param   bool    $exists    If true, try to find the first that exists,
      *                             else return the first solution.
      * @param   bool    $unfold    Return all solutions instead of one.
      * @return  mixed
      */
-    public function resolve($path, $exists = true, $unfold = false)
-    {
-        if (substr($path, 0, 6) !== 'hoa://') {
-            if (true === is_dir($path)) {
-                $path = rtrim($path, '/\\');
+    public function resolve ( $path, $exists = true, $unfold = false ) {
 
-                if (0 === strlen($path)) {
-                    $path = '/';
-                }
-            }
-
+        if(substr($path, 0, 6) !== 'hoa://')
             return $path;
-        }
 
-        if (isset(self::$_cache[$path])) {
+        if(isset(self::$_cache[$path]))
             $handle = self::$_cache[$path];
-        } else {
+        else {
+
             $out = $this->_resolve($path, $handle);
 
             // Not a path but a resource.
-            if (!is_array($handle)) {
+            if(!is_array($handle))
                 return $out;
-            }
-
-            $handle = array_values(array_unique($handle, SORT_REGULAR));
-
-            foreach ($handle as &$entry) {
-                if (true === is_dir($entry)) {
-                    $entry = rtrim($entry, '/\\');
-
-                    if (0 === strlen($entry)) {
-                        $entry = '/';
-                    }
-                }
-            }
 
             self::$_cache[$path] = $handle;
         }
 
-        if (true === $unfold) {
-            if (true !== $exists) {
+        if(true === $unfold) {
+
+            if(true !== $exists)
                 return $handle;
-            }
 
-            $out = [];
+            $out = array();
 
-            foreach ($handle as $solution) {
-                if (file_exists($solution)) {
+            foreach($handle as $solution)
+                if(file_exists($solution))
                     $out[] = $solution;
-                }
-            }
 
             return $out;
         }
 
-        if (true !== $exists) {
+        if(true !== $exists)
             return $handle[0];
-        }
 
-        foreach ($handle as $solution) {
-            if (file_exists($solution)) {
+        foreach($handle as $solution)
+            if(file_exists($solution))
                 return $solution;
-            }
-        }
 
         return static::NO_RESOLUTION;
     }
@@ -270,45 +236,48 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
      * Resolve a path, i.e. iterate the components tree and reach the queue of
      * the path.
      *
+     * @access  public
      * @param   string  $path            Path to resolve.
      * @param   array   &$accumulator    Combination of all possibles paths.
      * @param   string  $id              ID.
      * @return  mixed
      */
-    protected function _resolve($path, &$accumulator, $id = null)
-    {
-        if (substr($path, 0, 6) == 'hoa://') {
+    protected function _resolve ( $path, &$accumulator, $id = null ) {
+
+        if(substr($path, 0, 6) == 'hoa://')
             $path = substr($path, 6);
-        }
 
-        if (empty($path)) {
+        if(empty($path))
             return null;
-        }
 
-        if (null === $accumulator) {
-            $accumulator = [];
+        if(null === $accumulator) {
+
+            $accumulator = array();
             $posId       = strpos($path, '#');
 
-            if (false !== $posId) {
+            if(false !== $posId) {
+
                 $id   = substr($path, $posId + 1);
                 $path = substr($path, 0, $posId);
-            } else {
-                $id   = null;
             }
+            else
+                $id   = null;
         }
 
         $path = trim($path, '/');
         $pos  = strpos($path, '/');
 
-        if (false !== $pos) {
+        if(false !== $pos)
             $next = substr($path, 0, $pos);
-        } else {
+        else
             $next = $path;
-        }
 
-        if (isset($this[$next])) {
-            if (false === $pos) {
-                if (null === $id) {
+        if(isset($this[$next])) {
+
+            if(false === $pos) {
+
+                if(null === $id) {
+
                     $this->_resolveChoice($this[$next]->reach(), $accumulator);
 
                     return true;
@@ -319,7 +288,7 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
                 return $this[$next]->reachId($id);
             }
 
-            $tnext = $this[$next];
+            $tnext  = $this[$next];
             $this->_resolveChoice($tnext->reach(), $accumulator);
 
             return $tnext->_resolve(substr($path, $pos + 1), $accumulator, $id);
@@ -333,50 +302,53 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
     /**
      * Resolve choices, i.e. a reach value has a “;”.
      *
+     * @access  public
      * @param   string  $reach           Reach value.
      * @param   array   &$accumulator    Combination of all possibles paths.
      * @return  void
      */
-    protected function _resolveChoice($reach, Array &$accumulator)
-    {
-        if (empty($accumulator)) {
-            $accumulator = explode(RS, $reach);
+    protected function _resolveChoice ( $reach, Array &$accumulator ) {
+
+
+        if(empty($accumulator)) {
+
+            $accumulator = explode(';', $reach);
 
             return;
         }
 
-        if (false === strpos($reach, RS)) {
-            if (false !== $pos = strrpos($reach, "\r")) {
+        if(false === strpos($reach, ';')) {
+
+            if(false !== $pos = strrpos($reach, "\r")) {
+
                 $reach = substr($reach, $pos + 1);
 
-                foreach ($accumulator as &$entry) {
+                foreach($accumulator as &$entry)
                     $entry = null;
-                }
             }
 
-            foreach ($accumulator as &$entry) {
+            foreach($accumulator as &$entry)
                 $entry .= $reach;
-            }
 
             return;
         }
 
-        $choices     = explode(RS, $reach);
+        $choices     = explode(';', $reach);
         $ref         = $accumulator;
-        $accumulator = [];
+        $accumulator = array();
 
-        foreach ($choices as $choice) {
-            if (false !== $pos = strrpos($choice, "\r")) {
+        foreach($choices as $choice) {
+
+            if(false !== $pos = strrpos($choice, "\r")) {
+
                 $choice = substr($choice, $pos + 1);
 
-                foreach ($ref as $entry) {
+                foreach($ref as $entry)
                     $accumulator[] = $choice;
-                }
-            } else {
-                foreach ($ref as $entry) {
-                    $accumulator[] = $entry . $choice;
-                }
             }
+            else
+                foreach($ref as $entry)
+                    $accumulator[] = $entry . $choice;
         }
 
         unset($ref);
@@ -387,11 +359,12 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
     /**
      * Clear cache.
      *
+     * @access  public
      * @return  void
      */
-    public static function clearCache()
-    {
-        self::$_cache = [];
+    public static function clearCache ( ) {
+
+        self::$_cache = array();
 
         return;
     }
@@ -400,12 +373,13 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
      * Queue of the component.
      * Generic one. Should be overload in children classes.
      *
+     * @access  public
      * @param   string  $queue    Queue of the component (generally, a filename,
      *                            with probably a query).
      * @return  mixed
      */
-    public function reach($queue = null)
-    {
+    public function reach ( $queue = null ) {
+
         return empty($queue) ? $this->_reach : $queue;
     }
 
@@ -413,27 +387,27 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
      * ID of the component.
      * Generic one. Should be overload in children classes.
      *
+     * @access  public
      * @param   string  $id    ID of the component.
      * @return  mixed
-     * @throws  \Hoa\Core\Exception
+     * @throw   \Hoa\Core\Exception
      */
-    public function reachId($id)
-    {
-        throw new Core\Exception(
+    public function reachId ( $id ) {
+
+        throw new \Hoa\Core\Exception(
             'The component %s has no ID support (tried to reach #%s).',
-            4,
-            [$this->getName(), $id]
-        );
+            4, array($this->getName(), $id));
     }
 
     /**
      * Set a new reach value.
      *
+     * @access  public
      * @param   string  $reach    Reach value.
      * @return  string
      */
-    public function setReach($reach)
-    {
+    public function setReach ( $reach ) {
+
         $old          = $this->_reach;
         $this->_reach = $reach;
 
@@ -443,48 +417,53 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
     /**
      * Get component's name.
      *
+     * @access  public
      * @return  string
      */
-    public function getName()
-    {
+    public function getName ( ) {
+
         return $this->_name;
     }
 
     /**
      * Get reach's root.
      *
+     * @access  protected
      * @return  string
      */
-    protected function getReach()
-    {
+    protected function getReach ( ) {
+
         return $this->_reach;
     }
 
     /**
      * Get an iterator.
      *
-     * @return  \ArrayIterator
+     * @access  public
+     * @return  \ArrayObject
      */
-    public function getIterator()
-    {
-        return new \ArrayIterator($this->_components);
+    public function getIterator ( ) {
+
+        return new \ArrayObject($this->_components);
     }
 
     /**
      * Print a tree of component.
      *
+     * @access  public
      * @return  string
      */
-    public function __toString()
-    {
+    public function __toString ( ) {
+
         static $i = 0;
 
         $out = str_repeat('  ', $i) . $this->getName() . "\n";
 
-        foreach ($this as $foo => $component) {
-            ++$i;
+        foreach($this as $foo => $component) {
+
+            $i++;
             $out .= $component;
-            --$i;
+            $i--;
         }
 
         return $out;
@@ -492,7 +471,8 @@ abstract class Protocol implements \ArrayAccess, \IteratorAggregate
 }
 
 /**
- * Make the alias automatically.
+ * Make the alias automatically (because it's not imported with the import()
+ * function).
  */
 class_alias('Hoa\Core\Protocol\Protocol', 'Hoa\Core\Protocol');
 
@@ -501,27 +481,29 @@ class_alias('Hoa\Core\Protocol\Protocol', 'Hoa\Core\Protocol');
  *
  * hoa://'s protocol's generic component.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Generic extends Protocol
-{
-}
+
+class Generic extends Protocol { }
 
 /**
  * Class \Hoa\Core\Protocol\Root.
  *
  * hoa://'s protocol's root.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Root extends Protocol
-{
+
+class Root extends Protocol {
+
     /**
      * Component's name.
      *
-     * @var string
+     * @var \Hoa\Core\Protocol\Root string
      */
     protected $_name = 'hoa://';
 }
@@ -531,55 +513,45 @@ class Root extends Protocol
  *
  * Library protocol's component.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Library extends Protocol
-{
+
+class Library extends Protocol {
+
     /**
      * Queue of the component.
      *
+     * @access  public
      * @param   string  $queue    Queue of the component (generally, a filename,
      *                            with probably a query).
      * @return  mixed
      */
-    public function reach($queue = null)
-    {
-        if (!WITH_COMPOSER) {
+    public function reach ( $queue = null ) {
+
+        if(!WITH_COMPOSER)
             return parent::reach($queue);
+
+        if(!empty($queue)) {
+
+            $pos   = strpos($queue, DS);
+            $queue = strtolower(substr($queue, 0, $pos)) . substr($queue, $pos);
         }
+        else {
 
-        if (!empty($queue)) {
-            $head = $queue;
+            $out = array();
 
-            if (false !== $pos = strpos($queue, '/')) {
-                $head  = substr($head, 0, $pos);
-                $queue = DS . substr($queue, $pos + 1);
-            } else {
-                $queue = null;
+            foreach(explode(';', $this->_reach) as $part) {
+
+                $pos   = strrpos(rtrim($part, DS), DS) + 1;
+                $head  = substr($part, 0, $pos);
+                $tail  = substr($part, $pos);
+                $out[] = $head . strtolower($tail);
             }
 
-            $out = [];
-
-            foreach (explode(RS, $this->_reach) as $part) {
-                $out[] = "\r" . $part . strtolower($head) . $queue;
-            }
-
-            $out[] = "\r" . dirname(dirname(dirname(__DIR__))) . $queue;
-
-            return implode(RS, $out);
+            $this->_reach = implode(';', $out);
         }
-
-        $out = [];
-
-        foreach (explode(RS, $this->_reach) as $part) {
-            $pos   = strrpos(rtrim($part, DS), DS) + 1;
-            $head  = substr($part, 0, $pos);
-            $tail  = substr($part, $pos);
-            $out[] = $head . strtolower($tail);
-        }
-
-        $this->_reach = implode(RS, $out);
 
         return parent::reach($queue);
     }
@@ -590,29 +562,31 @@ class Library extends Protocol
  *
  * Wrapper for hoa://'s protocol.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Wrapper
-{
+
+class Wrapper {
+
     /**
      * Opened stream.
      *
-     * @var resource
+     * @var \Hoa\Core\Protocol\Wrapper resource
      */
     private $_stream     = null;
 
     /**
      * Stream name (filename).
      *
-     * @var string
+     * @var \Hoa\Core\Protocol\Wrapper string
      */
     private $_streamName = null;
 
     /**
      * Stream context (given by the streamWrapper class).
      *
-     * @var resource
+     * @var \Hoa\Core\Protocol\Wrapper resource
      */
     public $context      = null;
 
@@ -622,27 +596,14 @@ class Wrapper
      * Get the real path of the given URL.
      * Could return false if the path cannot be reached.
      *
+     * @access  public
      * @param   string  $path      Path (or URL).
      * @param   bool    $exists    If true, try to find the first that exists,
      * @return  mixed
      */
-    public static function realPath($path, $exists = true)
-    {
-        return Core::getProtocol()->resolve($path, $exists);
-    }
+    public static function realPath ( $path, $exists = true ) {
 
-    /**
-     * Retrieve the underlaying resource.
-     *
-     * @param   int     $castAs    Can be STREAM_CAST_FOR_SELECT when
-     *                             stream_select() is calling stream_cast() or
-     *                             STREAM_CAST_AS_STREAM when stream_cast() is
-     *                             called for other uses.
-     * @return  resource
-     */
-    public function stream_cast($castAs)
-    {
-        return false;
+        return \Hoa\Core::getProtocol()->resolve($path, $exists);
     }
 
     /**
@@ -651,11 +612,13 @@ class Wrapper
      * All resources that were locked, or allocated, by the wrapper should be
      * released.
      *
+     * @access  public
      * @return  void
      */
-    public function stream_close()
-    {
-        if (true === @fclose($this->getStream())) {
+    public function stream_close ( ) {
+
+        if(true === @fclose($this->getStream())) {
+
             $this->_stream     = null;
             $this->_streamName = null;
         }
@@ -670,8 +633,8 @@ class Wrapper
      * access   public
      * @return  bool
      */
-    public function stream_eof()
-    {
+    public function stream_eof ( ) {
+
         return feof($this->getStream());
     }
 
@@ -681,10 +644,11 @@ class Wrapper
      * If we have cached data in our stream but not yet stored it into the
      * underlying storage, we should do so now.
      *
+     * @access  public
      * @return  bool
      */
-    public function stream_flush()
-    {
+    public function stream_flush ( ) {
+
         return fflush($this->getStream());
     }
 
@@ -694,6 +658,7 @@ class Wrapper
      * (when flags contains LOCK_EX), stream_set_blocking() and when closing the
      * stream (LOCK_UN).
      *
+     * @access  public
      * @param   int     $operation    Operation is one the following:
      *                                  * LOCK_SH to acquire a shared lock (reader) ;
      *                                  * LOCK_EX to acquire an exclusive lock (writer) ;
@@ -703,65 +668,9 @@ class Wrapper
      *                                    Windows).
      * @return  bool
      */
-    public function stream_lock($operation)
-    {
+    public function stream_lock ( $operation ) {
+
         return flock($this->getStream(), $operation);
-    }
-
-    /**
-     * Change stream options.
-     * This method is called to set metadata on the stream. It is called when
-     * one of the following functions is called on a stream URL: touch, chmod,
-     * chown or chgrp.
-     *
-     * @param   string    $path      The file path or URL to set metadata.
-     * @param   int       $option    One of the following constant:
-     *                                 * STREAM_META_TOUCH,
-     *                                 * STREAM_META_OWNER_NAME,
-     *                                 * STREAM_META_OWNER,
-     *                                 * STREAM_META_GROUP_NAME,
-     *                                 * STREAM_META_GROUP,
-     *                                 * STREAM_META_ACCESS.
-     * @param   mixed     $values    Arguments of touch, chmod, chown and chgrp.
-     * @return  bool
-     */
-    public function stream_metadata($path, $option, $values)
-    {
-        $path = static::realPath($path, false);
-
-        switch ($option) {
-            case STREAM_META_TOUCH:
-                $arity = count($values);
-
-                if (0 === $arity) {
-                    $out = touch($path);
-                } elseif (1 === $arity) {
-                    $out = touch($path, $values[0]);
-                } else {
-                    $out = touch($path, $values[0], $values[1]);
-                }
-
-                break;
-
-            case STREAM_META_OWNER_NAME:
-            case STREAM_META_OWNER:
-                $out = chown($path, $values);
-
-                break;
-
-            case STREAM_META_GROUP_NAME:
-            case STREAM_META_GROUP:
-                $out = chgrp($path, $values);
-
-                break;
-
-            case STREAM_META_ACCESS:
-                $out = chmod($path, $values);
-
-                break;
-        }
-
-        return $out;
     }
 
     /**
@@ -769,6 +678,7 @@ class Wrapper
      * This method is called immediately after the wrapper is initialized (f.e.
      * by fopen() and file_get_contents()).
      *
+     * @access  public
      * @param   string  $path           Specifies the URL that was passed to the
      *                                  original function.
      * @param   string  $mode           The mode used to open the file, as
@@ -791,28 +701,22 @@ class Wrapper
      *                                  actually opened.
      * @return  bool
      */
-    public function stream_open($path, $mode, $options, &$openedPath)
-    {
-        $path = static::realPath($path, 'r' === $mode[0]);
+    public function stream_open ( $path, $mode, $options, &$openedPath ) {
 
-        if (Protocol::NO_RESOLUTION === $path) {
+        $path = self::realPath($path, 'r' === $mode[0]);
+
+        if(Protocol::NO_RESOLUTION === $path)
             return false;
-        }
 
-        if (null === $this->context) {
+        if(null === $this->context)
             $openedPath = fopen($path, $mode, $options & STREAM_USE_PATH);
-        } else {
+        else
             $openedPath = fopen(
                 $path,
                 $mode,
                 $options & STREAM_USE_PATH,
                 $this->context
             );
-        }
-
-        if (false === is_resource($openedPath)) {
-            return false;
-        }
 
         $this->_stream     = $openedPath;
         $this->_streamName = $path;
@@ -821,15 +725,16 @@ class Wrapper
     }
 
     /**
-     * Read from stream.
+     * Read from stream. 
      * This method is called in response to fread() and fgets().
      *
+     * @access  public
      * @param   int     $count    How many bytes of data from the current
      *                            position should be returned.
      * @return  string
      */
-    public function stream_read($count)
-    {
+    public function stream_read ( $count ) {
+
         return fread($this->getStream(), $count);
     }
 
@@ -839,6 +744,7 @@ class Wrapper
      * The read/write position of the stream should be updated according to the
      * $offset and $whence.
      *
+     * @access  public
      * @param   int     $offset    The stream offset to seek to.
      * @param   int     $whence    Possible values:
      *                               * SEEK_SET to set position equal to $offset
@@ -849,19 +755,20 @@ class Wrapper
      *                                 plus $offset.
      * @return  bool
      */
-    public function stream_seek($offset, $whence = SEEK_SET)
-    {
-        return 0 === fseek($this->getStream(), $offset, $whence);
+    public function stream_seek ( $offset, $whence = SEEK_SET ) {
+
+        return fseek($this->getStream(), $offset, $whence);
     }
 
     /**
      * Retrieve information about a file resource.
      * This method is called in response to fstat().
      *
+     * @access  public
      * @return  array
      */
-    public function stream_stat()
-    {
+    public function stream_stat ( ) {
+
         return fstat($this->getStream());
     }
 
@@ -869,21 +776,23 @@ class Wrapper
      * Retrieve the current position of a stream.
      * This method is called in response to ftell().
      *
+     * @access  public
      * @return  int
      */
-    public function stream_tell()
-    {
+    public function stream_tell ( ) {
+
         return ftell($this->getStream());
     }
 
     /**
      * Truncate a stream to a given length.
      *
+     * @access  public
      * @param   int     $size    Size.
      * @return  bool
      */
-    public function stream_truncate($size)
-    {
+    public function stream_truncate ( $size ) {
+
         return ftruncate($this->getStream(), $size);
     }
 
@@ -891,11 +800,12 @@ class Wrapper
      * Write to stream.
      * This method is called in response to fwrite().
      *
+     * @access  public
      * @param   string  $data    Should be stored into the underlying stream.
      * @return  int
      */
-    public function stream_write($data)
-    {
+    public function stream_write ( $data ) {
+
         return fwrite($this->getStream(), $data);
     }
 
@@ -905,11 +815,13 @@ class Wrapper
      * Any resources which were locked, or allocated, during opening and use of
      * the directory stream should be released.
      *
+     * @access  public
      * @return  bool
      */
-    public function dir_closedir()
-    {
-        if (true === $handle = @closedir($this->getStream())) {
+    public function dir_closedir ( ) {
+
+        if(true === $handle = @closedir($this->getStream())) {
+
             $this->_stream     = null;
             $this->_streamName = null;
         }
@@ -921,25 +833,24 @@ class Wrapper
      * Open directory handle.
      * This method is called in response to opendir().
      *
+     * @access  public
      * @param   string  $path       Specifies the URL that was passed to opendir().
      * @param   int     $options    Whether or not to enforce safe_mode (0x04).
      *                              It is not used here.
      * @return  bool
      */
-    public function dir_opendir($path, $options)
-    {
-        $path   = static::realPath($path);
+    public function dir_opendir ( $path, $options ) {
+
+        $path   = self::realPath($path);
         $handle = null;
 
-        if (null === $this->context) {
+        if(null === $this->context)
             $handle = @opendir($path);
-        } else {
+        else
             $handle = @opendir($path, $this->context);
-        }
 
-        if (false === $handle) {
+        if(false === $handle)
             return false;
-        }
 
         $this->_stream     = $handle;
         $this->_streamName = $path;
@@ -951,10 +862,11 @@ class Wrapper
      * Read entry from directory handle.
      * This method is called in response to readdir().
      *
+     * @access  public
      * @return  mixed
      */
-    public function dir_readdir()
-    {
+    public function dir_readdir ( ) {
+
         return readdir($this->getStream());
     }
 
@@ -965,10 +877,11 @@ class Wrapper
      * call to self::dir_readdir should return the first entry in the location
      * returned by self::dir_opendir.
      *
+     * @access  public
      * @return  bool
      */
-    public function dir_rewinddir()
-    {
+    public function dir_rewinddir ( ) {
+
         return rewinddir($this->getStream());
     }
 
@@ -976,23 +889,23 @@ class Wrapper
      * Create a directory.
      * This method is called in response to mkdir().
      *
+     * @access  public
      * @param   string  $path       Directory which should be created.
      * @param   int     $mode       The value passed to mkdir().
      * @param   int     $options    A bitwise mask of values.
      * @return  bool
      */
-    public function mkdir($path, $mode, $options)
-    {
-        if (null === $this->context) {
+    public function mkdir ( $path, $mode, $options ) {
+
+        if(null === $this->context)
             return mkdir(
-                static::realPath($path, false),
+                self::realPath($path, false),
                 $mode,
                 $options | STREAM_MKDIR_RECURSIVE
             );
-        }
 
         return mkdir(
-            static::realPath($path, false),
+            self::realPath($path, false),
             $mode,
             $options | STREAM_MKDIR_RECURSIVE,
             $this->context
@@ -1004,19 +917,19 @@ class Wrapper
      * This method is called in response to rename().
      * Should attempt to rename $from to $to.
      *
+     * @access  public
      * @param   string  $from    The URL to current file.
      * @param   string  $to      The URL which $from should be renamed to.
      * @return  bool
      */
-    public function rename($from, $to)
-    {
-        if (null === $this->context) {
-            return rename(static::realPath($from), static::realPath($to, false));
-        }
+    public function rename ( $from, $to ) {
+
+        if(null === $this->context)
+            return rename(self::realPath($from), self::realPath($to, false));
 
         return rename(
-            static::realPath($from),
-            static::realPath($to, false),
+            self::realPath($from),
+            self::realPath($to, false),
             $this->context
         );
     }
@@ -1025,40 +938,41 @@ class Wrapper
      * Remove a directory.
      * This method is called in response to rmdir().
      *
+     * @access  public
      * @param   string  $path       The directory URL which should be removed.
      * @param   int     $options    A bitwise mask of values. It is not used
      *                              here.
      * @return  bool
      */
-    public function rmdir($path, $options)
-    {
-        if (null === $this->context) {
-            return rmdir(static::realPath($path));
-        }
+    public function rmdir ( $path, $options ) {
 
-        return rmdir(static::realPath($path), $this->context);
+        if(null === $this->context)
+            return rmdir(self::realPath($path));
+
+        return rmdir(self::realPath($path), $this->context);
     }
 
     /**
      * Delete a file.
      * This method is called in response to unlink().
      *
+     * @access  public
      * @param   string  $path    The file URL which should be deleted.
      * @return  bool
      */
-    public function unlink($path)
-    {
-        if (null === $this->context) {
-            return unlink(static::realPath($path));
-        }
+    public function unlink ( $path ) {
 
-        return unlink(static::realPath($path), $this->context);
+        if(null === $this->context)
+            return unlink(self::realPath($path));
+
+        return unlink(self::realPath($path), $this->context);
     }
 
     /**
      * Retrieve information about a file.
      * This method is called in response to all stat() related functions.
      *
+     * @access  public
      * @param   string  $path     The file URL which should be retrieve
      *                            information about.
      * @param   int     $flags    Holds additional flags set by the streams API.
@@ -1079,24 +993,21 @@ class Wrapper
      *                            function during stating of the path.
      * @return  array
      */
-    public function url_stat($path, $flags)
-    {
-        $path = static::realPath($path);
+    public function url_stat ( $path, $flags ) {
 
-        if (Protocol::NO_RESOLUTION === $path) {
-            if ($flags & STREAM_URL_STAT_QUIET) {
+        $path = self::realPath($path);
+
+        if(Protocol::NO_RESOLUTION === $path)
+            if($flags & STREAM_URL_STAT_QUIET)
                 return 0;
-            } else {
+            else
                 return trigger_error(
                     'Path ' . $path . ' cannot be resolved.',
                     E_WARNING
                 );
-            }
-        }
 
-        if ($flags & STREAM_URL_STAT_LINK) {
+        if($flags & STREAM_URL_STAT_LINK)
             return @lstat($path);
-        }
 
         return @stat($path);
     }
@@ -1104,20 +1015,22 @@ class Wrapper
     /**
      * Get stream resource.
      *
+     * @access  protected
      * @return  resource
      */
-    protected function getStream()
-    {
+    protected function getStream ( ) {
+
         return $this->_stream;
     }
 
     /**
      * Get stream name.
      *
+     * @access  protected
      * @return  resource
      */
-    protected function getStreamName()
-    {
+    protected function getStreamName ( ) {
+
         return $this->_streamName;
     }
 }
@@ -1130,22 +1043,18 @@ namespace {
  * Alias of the \Hoa\Core::getInstance()->getProtocol()->resolve() method.
  * method.
  *
+ * @access  public
  * @param   string  $path      Path to resolve.
  * @param   bool    $exists    If true, try to find the first that exists,
  *                             else return the first solution.
  * @param   bool    $unfold    Return all solutions instead of one.
  * @return  mixed
  */
-if (!function_exists('resolve')) {
-    function resolve($path, $exists = true, $unfold = false)
-    {
-        return Hoa\Core::getInstance()->getProtocol()->resolve(
-            $path,
-            $exists,
-            $unfold
-        );
-    }
-}
+if(!ƒ('resolve')) {
+function resolve ( $path, $exists = true, $unfold = false ) {
+
+    return \Hoa\Core::getInstance()->getProtocol()->resolve($path, $exists, $unfold);
+}}
 
 /**
  * Register the hoa:// protocol.

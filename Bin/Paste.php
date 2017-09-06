@@ -37,25 +37,26 @@
 namespace Hoa\Core\Bin {
 
 /**
- * Class \Hoa\Core\Bin\Uuid.
+ * Class \Hoa\Core\Bin\Paste.
  *
- * This command generates an UUID.
+ * Paste something somewhere.
  *
  * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
  * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
 
-class Uuid extends \Hoa\Console\Dispatcher\Kit {
+class Paste extends \Hoa\Console\Dispatcher\Kit {
 
     /**
      * Options description.
      *
-     * @var \Hoa\Core\Bin\Uuid array
+     * @var \Hoa\Core\Bin\Paste array
      */
     protected $options = array(
-        array('help', \Hoa\Console\GetOption::NO_ARGUMENT, 'h'),
-        array('help', \Hoa\Console\GetOption::NO_ARGUMENT, '?')
+        array('address', \Hoa\Console\GetOption::REQUIRED_ARGUMENT, 'a'),
+        array('help',    \Hoa\Console\GetOption::NO_ARGUMENT,       'h'),
+        array('help',    \Hoa\Console\GetOption::NO_ARGUMENT,       '?')
     );
 
 
@@ -68,7 +69,13 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
      */
     public function main ( ) {
 
+        $address = 'paste.hoa-project.net:80';
+
         while(false !== $c = $this->getOption($v)) switch($c) {
+
+            case 'a':
+                $address = $v;
+              break;
 
             case 'h':
             case '?':
@@ -80,17 +87,38 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
               break;
         }
 
-        echo sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff)
-        ), "\n";
+        $input  = file_get_contents('php://stdin');
+        $server = stream_socket_client(
+            'tcp://' . $address,
+            $errno,
+            $errstr,
+            30
+        );
+
+        if(false == $server) {
+
+            echo 'Cannot connect to the server.', "\n";
+
+            return 1;
+        }
+
+        $request = 'POST / HTTP/1.1' . "\r\n" .
+                   'Host: ' . $address . "\r\n" .
+                   'Content-Type: text/plain' . "\r\n" .
+                   'Content-Length: ' . strlen($input) . "\r\n\r\n" .
+                   $input;
+
+        if(-1 === stream_socket_sendto($server, $request)) {
+
+            echo 'Pipe is broken, cannot write data.', "\n";
+
+            return 2;
+        }
+
+        $response = stream_socket_recvfrom($server, 1024);
+        list($headers, $body) = explode("\r\n\r\n", $response);
+
+        echo trim($body), "\n";
 
         return;
     }
@@ -103,10 +131,11 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
      */
     public function usage ( ) {
 
-        echo 'Usage   : core:uuid <options>', "\n",
+        echo 'Usage   : core:paste <options>', "\n",
              'Options :', "\n",
              $this->makeUsageOptionsList(array(
-                  'help' => 'This help.'
+                 'a'    => 'Address to the paste server.',
+                 'help' => 'This help.'
              )), "\n";
 
         return;
@@ -116,4 +145,4 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
 }
 
 __halt_compiler();
-Generate an Universal Unique Identifier (UUID).
+Paste something somewhere.

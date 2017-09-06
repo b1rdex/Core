@@ -8,7 +8,7 @@
  *
  * New BSD License
  *
- * Copyright © 2007-2015, Hoa community. All rights reserved.
+ * Copyright © 2007-2013, Ivan Enderlin. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -34,43 +34,43 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace Hoa\Core\Event;
-
-use Hoa\Core;
+namespace Hoa\Core\Event {
 
 /**
  * Interface \Hoa\Core\Event\Source.
  *
  * Each object which is observable must implement this interface.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-interface Source
-{
-}
+
+interface Source { }
 
 /**
  * Class \Hoa\Core\Event\Bucket.
  *
  * This class is the object which is transmit through event channels.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Bucket
-{
+
+class Bucket {
+
     /**
      * Source object.
      *
-     * @var \Hoa\Core\Event\Source
+     * @var \Hoa\Core\Event\Source object
      */
     protected $_source = null;
 
     /**
      * Data.
      *
-     * @var mixed
+     * @var \Hoa\Core\Event\Bucket mixed
      */
     protected $_data   = null;
 
@@ -79,11 +79,12 @@ class Bucket
     /**
      * Set data.
      *
+     * @access  public
      * @param   mixed   $data    Data.
      * @return  void
      */
-    public function __construct($data = null)
-    {
+    public function __construct ( $data = null ) {
+
         $this->setData($data);
 
         return;
@@ -92,24 +93,26 @@ class Bucket
     /**
      * Send this object on the event channel.
      *
+     * @access  public
      * @param   string                  $eventId    Event ID.
      * @param   \Hoa\Core\Event\Source  $source     Source.
      * @return  void
      * @throws  \Hoa\Core\Exception
      */
-    public function send($eventId, Source $source)
-    {
+    public function send ( $eventId, Source $source) {
+
         return Event::notify($eventId, $source, $this);
     }
 
     /**
      * Set source.
      *
+     * @access  public
      * @param   \Hoa\Core\Event\Source  $source    Source.
      * @return  \Hoa\Core\Event\Source
      */
-    public function setSource(Source $source)
-    {
+    public function setSource ( Source $source ) {
+
         $old           = $this->_source;
         $this->_source = $source;
 
@@ -119,21 +122,23 @@ class Bucket
     /**
      * Get source.
      *
+     * @access  public
      * @return  \Hoa\Core\Event\Source
      */
-    public function getSource()
-    {
+    public function getSource ( ) {
+
         return $this->_source;
     }
 
     /**
      * Set data.
      *
+     * @access  public
      * @param   mixed   $data    Data.
      * @return  mixed
      */
-    public function setData($data)
-    {
+    public function setData ( $data ) {
+
         $old         = $this->_data;
         $this->_data = $data;
 
@@ -143,10 +148,11 @@ class Bucket
     /**
      * Get data.
      *
+     * @access  public
      * @return  mixed
      */
-    public function getData()
-    {
+    public function getData ( ) {
+
         return $this->_data;
     }
 }
@@ -158,35 +164,38 @@ class Bucket
  * receive a bucket) and useful to largely spread data through components
  * without any known connection between them.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Event
-{
+
+class Event {
+
     /**
      * Static register of all observable objects, i.e. \Hoa\Core\Event\Source
      * object, i.e. object that can send event.
      *
-     * @var array
+     * @var \Hoa\Core\Event array
      */
-    private static $_register = [];
+    private static $_register = array();
 
     /**
      * Callables, i.e. observer objects.
      *
-     * @var array
+     * @var \Hoa\Core\Event array
      */
-    protected $_callable      = [];
+    protected $_callable      = array();
 
 
 
     /**
      * Privatize the constructor.
      *
+     * @access  private
      * @return  void
      */
-    private function __construct()
-    {
+    private function __construct ( ) {
+
         return;
     }
 
@@ -194,17 +203,17 @@ class Event
      * Manage multiton of events, with the principle of asynchronous
      * attachements.
      *
+     * @access  public
      * @param   string  $eventId    Event ID.
      * @return  \Hoa\Core\Event
      */
-    public static function getEvent($eventId)
-    {
-        if (!isset(self::$_register[$eventId][0])) {
-            self::$_register[$eventId] = [
+    public static function getEvent ( $eventId ) {
+
+        if(!isset(self::$_register[$eventId][0]))
+            self::$_register[$eventId] = array(
                 0 => new self(),
                 1 => null
-            ];
-        }
+            );
 
         return self::$_register[$eventId][0];
     }
@@ -213,45 +222,35 @@ class Event
      * Declare a new object in the observable collection.
      * Note: Hoa's libraries use hoa://Event/AnID for their observable objects;
      *
+     * @access  public
      * @param   string                  $eventId    Event ID.
      * @param   \Hoa\Core\Event\Source  $source     Observable object.
      * @return  void
      * @throws  \Hoa\Core\Exception
      */
-    public static function register($eventId, $source)
-    {
-        if (true === self::eventExists($eventId)) {
-            throw new Core\Exception(
-                'Cannot redeclare an event with the same ID, i.e. the event ' .
-                'ID %s already exists.',
-                0,
-                $eventId
-            );
-        }
+    public static function register ( $eventId, $source ) {
 
-        if (is_object($source) && !($source instanceof Source)) {
-            throw new Core\Exception(
+        if(true === self::eventExists($eventId))
+            throw new \Hoa\Core\Exception(
+                'Cannot redeclare an event with the same ID, i.e. the event ' .
+                'ID %s already exists.', 0, $eventId);
+
+        if(is_object($source) && !($source instanceof Source))
+            throw new \Hoa\Core\Exception(
                 'The source must implement \Hoa\Core\Event\Source ' .
-                'interface; given %s.',
-                1,
-                get_class($source)
-            );
-        } else {
+                'interface; given %s.', 1, get_class($source));
+        else {
+
             $reflection = new \ReflectionClass($source);
 
-            if (false === $reflection->implementsInterface('\Hoa\Core\Event\Source')) {
-                throw new Core\Exception(
+            if(false === $reflection->implementsInterface('\Hoa\Core\Event\Source'))
+                throw new \Hoa\Core\Exception(
                     'The source must implement \Hoa\Core\Event\Source ' .
-                    'interface; given %s.',
-                    2,
-                    $source
-                );
-            }
+                    'interface; given %s.', 2, $source);
         }
 
-        if (!isset(self::$_register[$eventId][0])) {
+        if(!isset(self::$_register[$eventId][0]))
             self::$_register[$eventId][0] = new self();
-        }
 
         self::$_register[$eventId][1] = $source;
 
@@ -261,18 +260,13 @@ class Event
     /**
      * Undeclare an object in the observable collection.
      *
+     * @access  public
      * @param   string  $eventId    Event ID.
-     * @param   bool    $hard       If false, just delete the source, else,
-     *                              delete source and attached callables.
      * @return  void
      */
-    public static function unregister($eventId, $hard = false)
-    {
-        if (false !== $hard) {
-            unset(self::$_register[$eventId]);
-        } else {
-            self::$_register[$eventId][1] = null;
-        }
+    public static function unregister ( $eventId ) {
+
+        unset(self::$_register[$eventId]);
 
         return;
     }
@@ -282,11 +276,12 @@ class Event
      * It can be a callable or an accepted callable form (please, see the
      * \Hoa\Core\Consistency\Xcallable class).
      *
+     * @access  public
      * @param   mixed   $callable    Callable.
      * @return  \Hoa\Core\Event
      */
-    public function attach($callable)
-    {
+    public function attach ( $callable ) {
+
         $callable                              = xcallable($callable);
         $this->_callable[$callable->getHash()] = $callable;
 
@@ -297,11 +292,12 @@ class Event
      * Detach an object to an event.
      * Please see $this->attach() method.
      *
+     * @access  public
      * @param   mixed   $callable    Callable.
      * @return  \Hoa\Core\Event
      */
-    public function detach($callable)
-    {
+    public function detach ( $callable ) {
+
         unset($this->_callable[xcallable($callable)->getHash()]);
 
         return $this;
@@ -310,38 +306,47 @@ class Event
     /**
      * Check if at least one callable is attached to an event.
      *
+     * @access  public
      * @return  bool
      */
-    public function isListened()
-    {
+    public function isListened ( ) {
+
         return !empty($this->_callable);
     }
 
     /**
      * Notify, i.e. send data to observers.
      *
+     * @access  public
      * @param   string                             Event ID.
      * @param   \Hoa\Core\Event\Source  $source    Source.
      * @param   \Hoa\Core\Event\Bucket  $data      Data.
      * @return  void
      * @throws  \Hoa\Core\Exception
      */
-    public static function notify($eventId, Source $source, Bucket $data)
-    {
-        if (false === self::eventExists($eventId)) {
-            throw new Core\Exception(
+    public static function notify ( $eventId, Source $source, Bucket $data ) {
+
+        if(false === self::eventExists($eventId))
+            throw new \Hoa\Core\Exception(
                 'Event ID %s does not exist, cannot send notification.',
-                3,
-                $eventId
-            );
-        }
+                3, $eventId);
+
+        $sourceRef = self::$_register[$eventId][1];
+
+        if(!($source instanceof $sourceRef))
+            throw new \Hoa\Core\Exception(
+                'Source cannot create a notification because it\'s the ' .
+                'source or source\'s child (source reference: %s, given %s.',
+                4, array(
+                    is_object($sourceRef) ? get_class($sourceRef) : $sourceRef,
+                    get_class($source)
+                ));
 
         $data->setSource($source);
         $event = self::getEvent($eventId);
 
-        foreach ($event->_callable as $callable) {
+        foreach($event->_callable as $callable)
             $callable($data);
-        }
 
         return;
     }
@@ -349,14 +354,14 @@ class Event
     /**
      * Check whether an event exists.
      *
+     * @access  public
      * @param   string  $eventId    Event ID.
      * @return  bool
      */
-    public static function eventExists($eventId)
-    {
-        return
-            array_key_exists($eventId, self::$_register) &&
-            self::$_register[$eventId][1] !== null;
+    public static function eventExists ( $eventId ) {
+
+        return    array_key_exists($eventId, self::$_register)
+               && self::$_register[$eventId][1] !== null;
     }
 }
 
@@ -365,20 +370,23 @@ class Event
  *
  * Each object which is listenable must implement this interface.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-interface Listenable extends Source
-{
+
+interface Listenable extends Source {
+
     /**
      * Attach a callable to a listenable component.
      *
+     * @access  public
      * @param   string  $listenerId    Listener ID.
      * @param   mixed   $callable      Callable.
      * @return  \Hoa\Core\Event\Listenable
-     * @throws  \Hoa\Core\Exception
+     * @throw   \Hoa\Core\Exception
      */
-    public function on($listenerId, $callable);
+    public function on ( $listenerId, $callable );
 }
 
 /**
@@ -387,22 +395,24 @@ interface Listenable extends Source
  * A contrario of events, listeners are synchronous, identified at use and
  * useful for close interactions between one or some components.
  *
- * @copyright  Copyright © 2007-2015 Hoa community
+ * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
+ * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
-class Listener
-{
+
+class Listener {
+
     /**
      * Source of listener (for Bucket).
      *
-     * @var \Hoa\Core\Event\Listenable
+     * @var \Hoa\Core\Event\Listenable object
      */
     protected $_source = null;
 
     /**
      * All listener IDs and associated listeners.
      *
-     * @var array
+     * @var \Hoa\Core\Event\Listener array
      */
     protected $_listen = null;
 
@@ -411,12 +421,13 @@ class Listener
     /**
      * Build a listener.
      *
+     * @access  public
      * @param   \Hoa\Core\Event\Listenable  $source    Source (for Bucket).
      * @param   array                       $ids       Accepted ID.
      * @return  void
      */
-    public function __construct(Listenable $source, Array $ids)
-    {
+    public function __construct ( Listenable $source, Array $ids ) {
+
         $this->_source = $source;
         $this->addIds($ids);
 
@@ -426,14 +437,14 @@ class Listener
     /**
      * Add acceptable ID (or reset).
      *
+     * @access  public
      * @param   array  $ids    Accepted ID.
      * @return  void
      */
-    public function addIds(Array $ids)
-    {
-        foreach ($ids as $id) {
-            $this->_listen[$id] = [];
-        }
+    public function addIds ( Array $ids ) {
+
+        foreach($ids as $id)
+            $this->_listen[$id] = array();
 
         return;
     }
@@ -441,20 +452,17 @@ class Listener
     /**
      * Attach a callable to a listenable component.
      *
+     * @access  public
      * @param   string  $listenerId    Listener ID.
      * @param   mixed   $callable      Callable.
      * @return  \Hoa\Core\Event\Listener
-     * @throws  \Hoa\Core\Exception
+     * @throw   \Hoa\Core\Exception
      */
-    public function attach($listenerId, $callable)
-    {
-        if (false === $this->listenerExists($listenerId)) {
-            throw new Core\Exception(
-                'Cannot listen %s because it is not defined.',
-                0,
-                $listenerId
-            );
-        }
+    public function attach ( $listenerId, $callable ) {
+
+        if(false === $this->listenerExists($listenerId))
+            throw new \Hoa\Core\Exception(
+                'Cannot listen %s because it is not defined.', 0, $listenerId);
 
         $callable                                         = xcallable($callable);
         $this->_listen[$listenerId][$callable->getHash()] = $callable;
@@ -465,26 +473,14 @@ class Listener
     /**
      * Detach a callable from a listenable component.
      *
+     * @access  public
      * @param   string  $listenerId    Listener ID.
      * @param   mixed   $callable      Callable.
      * @return  \Hoa\Core\Event\Listener
      */
-    public function detach($listenerId, $callable)
-    {
+    public function detach ( $listenerId, $callable ) {
+
         unset($this->_callable[$listenerId][xcallable($callable)->getHash()]);
-
-        return $this;
-    }
-
-    /**
-     * Detach all callables from a listenable component.
-     *
-     * @param  string  $listenerId    Listener ID.
-     * @return \Hoa\Core\Event\Listener
-     */
-    public function detachAll($listenerId)
-    {
-        unset($this->_callable[$listenerId]);
 
         return $this;
     }
@@ -492,43 +488,47 @@ class Listener
     /**
      * Check if a listener exists.
      *
+     * @access  public
      * @param   string  $listenerId    Listener ID.
      * @return  bool
      */
-    public function listenerExists($listenerId)
-    {
+    public function listenerExists ( $listenerId ) {
+
         return array_key_exists($listenerId, $this->_listen);
     }
 
     /**
      * Send/fire a bucket to a listener.
      *
+     * @access  public
      * @param   string                  $listenerId    Listener ID.
      * @param   \Hoa\Core\Event\Bucket  $data          Data.
      * @return  array
-     * @throws  \Hoa\Core\Exception
+     * @throw   \Hoa\Core\Exception
      */
-    public function fire($listenerId, Bucket $data)
-    {
-        if (false === $this->listenerExists($listenerId)) {
-            throw new Core\Exception(
-                'Cannot fire on %s because it is not defined.',
-                1
-            );
-        }
+    public function fire ( $listenerId, Bucket $data ) {
+
+        if(false === $this->listenerExists($listenerId))
+            throw new \Hoa\Core\Exception(
+                'Cannot fire on %s because it is not defined.', 1);
 
         $data->setSource($this->_source);
-        $out = [];
+        $out = array();
 
-        foreach ($this->_listen[$listenerId] as $callable) {
+        foreach($this->_listen[$listenerId] as $callable)
             $out[] = $callable($data);
-        }
 
         return $out;
     }
 }
 
+}
+
+namespace {
+
 /**
  * Alias.
  */
 class_alias('Hoa\Core\Event\Event', 'Hoa\Core\Event');
+
+}

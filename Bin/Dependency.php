@@ -34,28 +34,42 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+namespace {
+
+from('Hoa')
+
+/**
+ * \Hoa\Console
+ */
+-> import('Console.~');
+
+}
+
 namespace Hoa\Core\Bin {
 
 /**
- * Class \Hoa\Core\Bin\Uuid.
+ * Class \Hoa\Core\Bin\Dependency.
  *
- * This command generates an UUID.
+ * This command manipulates dependencies of a library.
  *
  * @author     Ivan Enderlin <ivan.enderlin@hoa-project.net>
  * @copyright  Copyright © 2007-2013 Ivan Enderlin.
  * @license    New BSD License
  */
 
-class Uuid extends \Hoa\Console\Dispatcher\Kit {
+class Dependency extends \Hoa\Console\Dispatcher\Kit {
 
     /**
      * Options description.
      *
-     * @var \Hoa\Core\Bin\Uuid array
+     * @var \Hoa\Core\Bin\Dependency array
      */
     protected $options = array(
-        array('help', \Hoa\Console\GetOption::NO_ARGUMENT, 'h'),
-        array('help', \Hoa\Console\GetOption::NO_ARGUMENT, '?')
+        array('no-verbose',   \Hoa\Console\GetOption::NO_ARGUMENT, 'V'),
+        array('only-library', \Hoa\Console\GetOption::NO_ARGUMENT, 'l'),
+        array('only-version', \Hoa\Console\GetOption::NO_ARGUMENT, 'v'),
+        array('help',         \Hoa\Console\GetOption::NO_ARGUMENT, 'h'),
+        array('help',         \Hoa\Console\GetOption::NO_ARGUMENT, '?')
     );
 
 
@@ -68,7 +82,22 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
      */
     public function main ( ) {
 
+        $verbose = \Hoa\Console::isDirect(STDOUT);
+        $print   = 'both';
+
         while(false !== $c = $this->getOption($v)) switch($c) {
+
+            case 'V':
+                $verbose = false;
+              break;
+
+            case 'l':
+                $print = 'library';
+              break;
+
+            case 'v':
+                $print = 'version';
+              break;
 
             case 'h':
             case '?':
@@ -80,17 +109,52 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
               break;
         }
 
-        echo sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff)
-        ), "\n";
+        $this->parser->listInputs($library);
+
+        if(null === $library)
+            return $this->usage();
+
+        $library = ucfirst(strtolower($library));
+        $path    = 'hoa://Library/' . $library . '/composer.json';
+
+        if(true === $verbose)
+            echo 'Dependency for the library ', $library, ':', "\n";
+
+        if(false === file_exists($path))
+            throw new \Hoa\Console\Exception(
+                'Not yet computed or the %s library does not exist.',
+                0, $library);
+
+        $json = json_decode(file_get_contents($path), true);
+
+        if(true === $verbose) {
+
+            $item      = '    • ';
+            $separator = ' => ';
+        }
+        else {
+
+            $item      = '';
+            $separator = ' ';
+        }
+
+        foreach($json['require'] ?: array() as $dependency => $version) {
+
+            switch($print) {
+
+                case 'both':
+                    echo $item, $dependency, $separator, $version, "\n";
+                  break;
+
+                case 'library':
+                    echo $item, $dependency, "\n";
+                  break;
+
+                case 'version':
+                    echo $item, $version, "\n";
+                  break;
+            }
+        }
 
         return;
     }
@@ -103,10 +167,14 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
      */
     public function usage ( ) {
 
-        echo 'Usage   : core:uuid <options>', "\n",
+        echo 'Usage   : core:dependency <options> library', "\n",
              'Options :', "\n",
              $this->makeUsageOptionsList(array(
-                  'help' => 'This help.'
+                 'V'    => 'No-verbose, i.e. be as quiet as possible, just print ' .
+                           'essential informations.',
+                 'l'    => 'Print only the library name.',
+                 'v'    => 'Print only the version.',
+                 'help' => 'This help.'
              )), "\n";
 
         return;
@@ -116,4 +184,4 @@ class Uuid extends \Hoa\Console\Dispatcher\Kit {
 }
 
 __halt_compiler();
-Generate an Universal Unique Identifier (UUID).
+Manipulate dependencies of a library.
