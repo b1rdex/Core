@@ -247,7 +247,7 @@ class Idle extends \Exception {
      * @return  void
      * @throw   \Exception
      */
-    public static function uncaught ( \Exception $exception ) {
+    public static function uncaught ( $exception ) {
 
         if(!($exception instanceof Idle))
             throw $exception;
